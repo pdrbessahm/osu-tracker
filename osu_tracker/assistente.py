@@ -34,6 +34,76 @@ class Cancelado(Exception):
     pass
 
 
+class Recusado(Exception):
+    """Credenciais ou jogador nao aceitos; a mensagem e para mostrar ao jogador."""
+
+    def __init__(self, mensagem: str, dica_colar: bool = False):
+        super().__init__(mensagem)
+        self.dica_colar = dica_colar  # o problema pode ter sido a colagem no console
+
+
+class JogadorNaoEncontrado(Recusado):
+    pass
+
+
+def limpar_segredo(texto: str) -> str:
+    # espaco ou quebra de linha que vem junto ao colar nao faz parte do secret
+    return re.sub(r"\s+", "", texto)
+
+
+def testar_credenciais(client_id: str, segredo: str, criar_api: Callable[[str, str], OsuApi] = OsuApi) -> OsuApi:
+    """Confere o formato e pede um token ao osu!. Usado pelo assistente de console e pela janela."""
+    client_id = client_id.strip()
+    if not client_id.isdigit():
+        raise Recusado("O Client ID e um numero.")
+    if not segredo:
+        raise Recusado("Falta o Client Secret.", dica_colar=True)
+    if not segredo.isprintable() or not segredo.isascii():
+        raise Recusado("O que chegou nao parece um Client Secret: a colagem nao funcionou.", dica_colar=True)
+    api = criar_api(client_id, segredo)
+    try:
+        api.autenticar()
+    except CredenciaisRecusadas:
+        raise Recusado(
+            "O osu! recusou essas credenciais. Confira se o Client ID e o Client Secret sao do mesmo app "
+            "e, se voce clicou em \"Reset client secret\", use o novo.",
+            dica_colar=True,
+        ) from None
+    except ApiError as e:
+        raise Recusado(f"Nao consegui falar com o osu!: {e} Confira a internet e tente de novo.") from None
+    return api
+
+
+def buscar_jogador(api: OsuApi, texto: str) -> dict:
+    texto = texto.strip()
+    if not texto:
+        raise Recusado("Falta o seu nick ou ID no osu!.")
+    try:
+        return api.buscar_usuario(texto)
+    except NaoEncontrado:
+        raise JogadorNaoEncontrado(f"Nao achei o jogador {texto!r}.") from None
+    except ApiError as e:
+        raise Recusado(f"Erro ao buscar o jogador: {e}") from None
+
+
+def gravar_configuracao(atual: dict, credenciais: dict, usuario: dict, mode: str, banco: str | None = None) -> Path:
+    """Grava o config.toml mantendo o que o jogador ajustou a mao ([banco] e [detector])."""
+    dados: dict[str, dict] = {
+        "jogador": {"user_id": int(usuario["id"]), "username": usuario["username"], "mode": mode},
+        "osu_api": credenciais,
+    }
+    banco_final = banco or atual.get("banco", {}).get("caminho")
+    if banco_final:
+        dados["banco"] = {"caminho": str(Path(banco_final).expanduser())}
+    if atual.get("detector"):
+        dados["detector"] = atual["detector"]
+    return config.gravar(dados, comentario=(
+        "Configuracao do osu-tracker (feita pela janela ou por python -m osu_tracker configurar).\n"
+        "Opcional, secao [detector]: processos (nomes do processo do jogo), intervalo_checagem\n"
+        "e intervalo_coleta (segundos). Opcional, secao [banco]: caminho do banco SQLite."
+    ))
+
+
 class Assistente:
     def __init__(
         self,
@@ -78,28 +148,14 @@ class Assistente:
                 self.saida("O Client ID e um numero. Tente de novo.")
                 continue
             try:
-                segredo = self.senha("Client Secret (nao aparece ao digitar; Enter mantem o atual): ").strip()
+                segredo = self.senha("Client Secret (nao aparece ao digitar; Enter mantem o atual): ")
             except EOFError:
                 raise Cancelado from None
-            # espaco ou quebra de linha que vem junto ao colar nao faz parte do secret
-            segredo = re.sub(r"\s+", "", segredo) or str(atual.get("client_secret", ""))
-            if not segredo:
-                self.saida("Falta o Client Secret. Tente de novo.\n" + DICA_COLAR)
-                continue
-            if not segredo.isprintable() or not segredo.isascii():
-                self.saida("O que chegou nao parece um Client Secret: a colagem nao funcionou.\n" + DICA_COLAR)
-                continue
-            api = self.criar_api(client_id, segredo)
+            segredo = limpar_segredo(segredo) or str(atual.get("client_secret", ""))
             try:
-                api.autenticar()
-            except CredenciaisRecusadas:
-                self.saida(
-                    "O osu! recusou essas credenciais. Confira se o Client ID e o Client Secret sao do mesmo app "
-                    "e, se voce clicou em \"Reset client secret\", use o novo.\n" + DICA_COLAR
-                )
-                continue
-            except ApiError as e:
-                self.saida(f"Nao consegui falar com o osu!: {e} Confira a internet e tente de novo.")
+                api = testar_credenciais(client_id, segredo, self.criar_api)
+            except Recusado as e:
+                self.saida(f"{e}\n{DICA_COLAR}" if e.dica_colar else str(e))
                 continue
             self.saida("Credenciais aceitas.")
             return api, {"client_id": client_id, "client_secret": segredo}
@@ -112,14 +168,14 @@ class Assistente:
             if not texto:
                 continue
             try:
-                usuario = api.buscar_usuario(texto)
-            except NaoEncontrado:
-                self.saida(f"Nao achei o jogador {texto!r}.")
+                usuario = buscar_jogador(api, texto)
+            except JogadorNaoEncontrado as e:
+                self.saida(str(e))
                 if not interativo:
                     raise Cancelado(f"Jogador {texto!r} nao encontrado.") from None
                 continue
-            except ApiError as e:
-                raise Cancelado(f"Erro ao buscar o jogador: {e}") from None
+            except Recusado as e:
+                raise Cancelado(str(e)) from None
             self.saida(f"Achei: {usuario['username']} (ID {usuario['id']}, modo principal {usuario.get('playmode', 'osu')}).")
             if interativo and not self._sim("E voce?", True):
                 continue
@@ -159,20 +215,7 @@ class Assistente:
             usuario = self._jogador(api, atual.get("jogador", {}), jogador)
             mode = self._modo(usuario.get("playmode") or "osu", modo, interativo=jogador is None)
 
-            dados: dict[str, dict] = {
-                "jogador": {"user_id": int(usuario["id"]), "username": usuario["username"], "mode": mode},
-                "osu_api": credenciais,
-            }
-            banco_final = banco or atual.get("banco", {}).get("caminho")
-            if banco_final:
-                dados["banco"] = {"caminho": str(Path(banco_final).expanduser())}
-            if atual.get("detector"):
-                dados["detector"] = atual["detector"]
-            config.gravar(dados, comentario=(
-                "Configuracao do osu-tracker, criada pelo assistente (python -m osu_tracker configurar).\n"
-                "Opcional, secao [detector]: processos (nomes do processo do jogo), intervalo_checagem\n"
-                "e intervalo_coleta (segundos). Opcional, secao [banco]: caminho do banco SQLite."
-            ))
+            gravar_configuracao(atual, credenciais, usuario, mode, banco)
         except Cancelado as e:
             self.saida(f"Configuracao cancelada. {e}".strip())
             return 2

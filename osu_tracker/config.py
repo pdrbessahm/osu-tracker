@@ -23,7 +23,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-RAIZ = Path(__file__).resolve().parent.parent
+# Pasta do projeto; no executavel, a pasta do osu-tracker.exe (onde um .env opcional pode ficar).
+EXECUTAVEL = bool(getattr(sys, "frozen", False))
+RAIZ = Path(sys.executable).resolve().parent if EXECUTAVEL else Path(__file__).resolve().parent.parent
 NOME_APP = "osu-tracker"
 ARQUIVO_CONFIG = "config.toml"
 BANCO_PADRAO = "osu_tracker.sqlite3"
@@ -68,6 +70,10 @@ def caminho_config() -> Path:
     return pasta_app() / ARQUIVO_CONFIG
 
 
+def caminho_log() -> Path:
+    return pasta_app() / "osu-tracker.log"
+
+
 def carregar_ambiente() -> None:
     """Le o .env da pasta do projeto, se existir, sem sobrescrever o ambiente."""
     load_dotenv(RAIZ / ".env")
@@ -89,6 +95,17 @@ def ler_arquivo() -> dict:
             raise ConfigError(f"{caminho} esta com erro de formato: {e}") from None
 
 
+def caminho_banco(dados: dict) -> Path:
+    db_path = Path(dados.get("banco", {}).get("caminho", BANCO_PADRAO)).expanduser()
+    return db_path if db_path.is_absolute() else pasta_app() / db_path
+
+
+def recurso(relativo: str) -> Path:
+    """Arquivo que acompanha o programa (no executavel, extraido junto com ele)."""
+    base = Path(getattr(sys, "_MEIPASS", RAIZ))
+    return base / relativo
+
+
 def carregar() -> Config:
     dados = ler_arquivo()
     caminho = caminho_config()
@@ -100,7 +117,6 @@ def carregar() -> Config:
     jogador = dados.get("jogador", {})
     api = dados.get("osu_api", {})
     detector = dados.get("detector", {})
-    banco = dados.get("banco", {})
 
     if "user_id" not in jogador:
         raise ConfigError(f"Falta [jogador] user_id em {caminho}. Rode: python -m osu_tracker configurar")
@@ -119,15 +135,11 @@ def carregar() -> Config:
     if mode not in MODOS:
         raise ConfigError(f"[jogador] mode invalido em {caminho}: {mode!r} (use {', '.join(MODOS)})")
 
-    db_path = Path(banco.get("caminho", BANCO_PADRAO)).expanduser()
-    if not db_path.is_absolute():
-        db_path = pasta_app() / db_path
-
     return Config(
         user_id=int(jogador["user_id"]),
         username=str(jogador.get("username", "")),
         mode=mode,
-        db_path=db_path,
+        db_path=caminho_banco(dados),
         client_id=client_id,
         client_secret=client_secret,
         processos=tuple(detector.get("processos", PROCESSOS_PADRAO)),

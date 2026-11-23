@@ -12,10 +12,10 @@ log = logging.getLogger("osu_tracker")
 def configurar() -> None:
     if log.handlers:
         return
-    pasta = config.pasta_app()
-    pasta.mkdir(parents=True, exist_ok=True)
+    caminho = config.caminho_log()
+    caminho.parent.mkdir(parents=True, exist_ok=True)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    arquivo = RotatingFileHandler(pasta / "osu-tracker.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    arquivo = RotatingFileHandler(caminho, maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     arquivo.setFormatter(fmt)
     log.addHandler(arquivo)
     # Iniciado no logon (pythonw) nao ha terminal: so o arquivo.

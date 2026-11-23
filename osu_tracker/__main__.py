@@ -4,6 +4,7 @@
     python -m osu_tracker configurar   assistente de configuracao
     python -m osu_tracker coletar      uma coleta agora
     python -m osu_tracker detectar     so o detector
+    python -m osu_tracker janela       janela de configuracao e status (padrao no osu-tracker.exe)
 """
 
 import argparse
@@ -13,11 +14,11 @@ import signal
 import sys
 import threading
 
-from . import config, coletor, registro
+from . import config, coletor, controle, registro
 from .api import OsuApi
 from .assistente import Assistente
 from .detector import Detector, processo_aberto
-from .trava import Ocupada, Trava
+from .trava import Ocupada
 
 log = logging.getLogger("osu_tracker")
 
@@ -56,9 +57,8 @@ def cmd_detectar(args) -> int:
     if args.intervalo_coleta:
         cfg = dataclasses.replace(cfg, intervalo_coleta=args.intervalo_coleta)
 
-    instancia = Trava(config.pasta_app() / "detector.lock")
     try:
-        instancia.adquirir()
+        instancia = controle.adquirir_trava_detector()
     except Ocupada:
         log.info("O detector ja esta rodando; esta copia vai sair.")
         return coletor.PULADA
@@ -74,12 +74,41 @@ def cmd_detectar(args) -> int:
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, lambda *_: parar.set())
     try:
+        controle.anunciar_detector(parar)  # PID e pedido de parada vindo da janela
         detector.rodar(parar)
     except KeyboardInterrupt:
         log.info("Detector encerrado pelo usuario")
     finally:
+        controle.encerrar_detector()
         instancia.soltar()
     return 0
+
+
+def cmd_janela(args) -> int:
+    from . import janela  # so carrega o tkinter quando a janela e pedida
+    return janela.main()
+
+
+def _usar_console_de_quem_chamou() -> None:
+    """O osu-tracker.exe e de janela (sem console proprio, para o duplo clique nao abrir um console).
+
+    Chamado de um terminal com um comando (coletar, detectar, --help), escreve nesse terminal.
+    """
+    if not (config.EXECUTAVEL and sys.platform == "win32" and sys.stdout is None):
+        return
+    import ctypes
+    import psutil
+    # No executavel de arquivo unico o pai direto e o carregador do PyInstaller, que nao tem console;
+    # o terminal e o pai dele.
+    try:
+        pai = psutil.Process().parent()
+        candidatos = [p.pid for p in (pai, pai.parent() if pai else None) if p is not None]
+    except psutil.Error:
+        return
+    if not any(ctypes.windll.kernel32.AttachConsole(pid) for pid in candidatos):
+        return
+    sys.stdout = open("CONOUT$", "w", encoding="utf-8", errors="replace")  # noqa: SIM115 (vive ate o fim)
+    sys.stderr = sys.stdout
 
 
 def cmd_padrao(args) -> int:
@@ -114,6 +143,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--intervalo-coleta", type=float, help="segundos entre coletas com o jogo aberto")
     p.set_defaults(func=cmd_detectar)
 
+    p = sub.add_parser("janela", help="janela de configuracao e status")
+    p.set_defaults(func=cmd_janela)
+
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv and config.EXECUTAVEL:
+        argv = ["janela"]  # duplo clique no osu-tracker.exe abre a janela
+    if argv[:1] != ["janela"]:
+        _usar_console_de_quem_chamou()
     args = parser.parse_args(argv)
     return args.func(args)
 

@@ -3,7 +3,7 @@
 Guarda automaticamente toda jogada sua de osu!, inclusive os fails, num banco no seu proprio PC.
 A ideia e transformar esse historico em decisoes de treino: que mapa farmar, que habilidade treinar e se os seus misses estao caindo.
 
-Estado atual: coleta automatica e dificuldade de cada mapa com os mods que voce usou.
+Estado atual: coleta automatica, dificuldade de cada mapa com os mods que voce usou e uma janela de configuracao e status (no Windows, um `osu-tracker.exe` que nao precisa de Python).
 O painel com os graficos vem nas proximas versoes.
 
 ## O que ele faz
@@ -17,12 +17,30 @@ O painel com os graficos vem nas proximas versoes.
 Tudo fica no seu PC: nada e enviado a lugar nenhum alem das consultas a API do osu!.
 Feito primeiro para Windows com osu!stable, mas tambem roda no Linux e no macOS (detecta o osu!stable e o lazer).
 
-## Requisitos
+## Instalacao no Windows (osu-tracker.exe)
+
+Nao precisa de Python.
+
+1. Baixe o `osu-tracker.exe` da pagina Releases deste repositorio e coloque numa pasta fixa, por exemplo `Documentos\osu-tracker` (o inicio com o Windows aponta para ele; se mudar de lugar, desmarque e marque a opcao de novo).
+2. De dois cliques nele.
+   Como o executavel nao e assinado, o Windows pode mostrar "O Windows protegeu o computador": clique em "Mais informacoes" e "Executar assim mesmo".
+3. Na aba *Configuracao*, siga o passo a passo para criar o seu app OAuth no osu!, cole o Client ID e o Client Secret (Ctrl+V ou botao direito > Colar), escreva seu nick ou ID e clique em "Testar e salvar".
+   O osu-tracker confere tudo na API antes de gravar.
+4. Na aba *Status*, clique em "Iniciar" e marque "Iniciar o detector junto com o Windows".
+
+A janela mostra se o detector esta rodando (com o botao para iniciar ou parar), a ultima coleta e quantas jogadas ela trouxe, o total de jogadas no banco e botoes para abrir a pasta de dados e o log.
+Fechar a janela nao para o detector: ele continua em segundo plano, sem janela.
+Para voltar a janela, abra o `osu-tracker.exe` de novo.
+
+Para remover: desmarque "Iniciar o detector junto com o Windows", clique em "Parar" e apague o `.exe`.
+Seus dados ficam na pasta indicada em "Onde a configuracao e os dados ficam", abaixo.
+
+## Instalacao pelo codigo-fonte (Windows, Linux e macOS)
+
+Requisitos:
 
 - Python 3.10 ou mais novo (no Windows, pela Microsoft Store ou por python.org).
 - Uma conta no osu!.
-
-## Instalacao
 
 Baixe ou clone esta pasta e, dentro dela, crie o ambiente:
 
@@ -42,7 +60,15 @@ python3 -m venv .venv
 
 ## Configuracao (primeira execucao)
 
-Rode o assistente:
+Pelo codigo-fonte, a mesma janela do `.exe` abre com:
+
+```powershell
+.venv\Scripts\python -m osu_tracker janela
+```
+
+(no Linux e no macOS, `.venv/bin/python -m osu_tracker janela`; precisa do tkinter, que no Linux as vezes vem num pacote separado, como `python3-tk`)
+
+Ou, sem janela, rode o assistente no console:
 
 ```powershell
 .venv\Scripts\python -m osu_tracker configurar
@@ -91,7 +117,10 @@ caminho = "D:/osu/meu-banco.sqlite3"
 
 ## Iniciar junto com o Windows
 
-No PowerShell, dentro da pasta do projeto:
+Pelo `.exe` ou pela janela, basta marcar "Iniciar o detector junto com o Windows" na aba *Status*.
+Ela usa os mesmos scripts abaixo.
+
+Pelo codigo-fonte sem janela, no PowerShell, dentro da pasta do projeto:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File windows\instalar.ps1
@@ -116,7 +145,12 @@ python -m osu_tracker              # detector (roda o assistente antes, se ainda
 python -m osu_tracker coletar      # uma coleta agora, com ou sem o jogo aberto
 python -m osu_tracker detectar     # so o detector
 python -m osu_tracker configurar   # assistente
+python -m osu_tracker janela       # janela de configuracao e status
 ```
+
+O `osu-tracker.exe` aceita os mesmos comandos (`osu-tracker.exe coletar`, por exemplo); sem comando, abre a janela.
+Ele e um programa de janela, entao num terminal a saida aparece mas o terminal nao espera ele terminar; o que aconteceu fica sempre no log.
+A configuracao pelo `.exe` e pela janela; o assistente de console e para quem roda pelo codigo-fonte.
 
 So roda uma coleta por vez: se duas forem disparadas juntas (por exemplo o detector e um `coletar` manual), a segunda e pulada e registrada no log.
 Tambem so roda um detector por vez.
@@ -157,7 +191,23 @@ Nesses casos BPM, duracao, AR e OD usam a velocidade real (`taxa`) e a coluna `t
 python -m unittest discover -s tests
 ```
 
+Os testes da janela abrem uma janela de verdade e sao pulados se nao houver tela.
+
 `tests/e2e_detector.py` faz um teste ponta a ponta no Linux ou macOS com a API real e a sua configuracao: simula o jogo abrindo e fechando e duas coletas ao mesmo tempo.
+
+## Gerar o executavel
+
+O workflow `.github/workflows/executavel.yml` roda os testes (Windows e Linux, Python 3.10 e 3.13) e gera o `osu-tracker.exe` no Windows a cada push.
+Numa tag `v*` (por exemplo `v0.1.0`), ele anexa o `.exe` a uma Release com o nome da tag.
+
+Para gerar na sua maquina:
+
+```powershell
+.venv\Scripts\pip install -r requirements-build.txt
+.venv\Scripts\python -m PyInstaller --noconfirm windows\osu-tracker.spec
+```
+
+O resultado fica em `dist\osu-tracker.exe`.
 
 ## Licenca
 

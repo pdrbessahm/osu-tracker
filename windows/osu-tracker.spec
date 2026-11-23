@@ -1,0 +1,28 @@
+# Receita do PyInstaller para o osu-tracker.exe (arquivo unico, sem console).
+# Gerar, a partir da pasta do projeto:  pyinstaller windows/osu-tracker.spec
+# O resultado fica em dist/osu-tracker.exe (ou dist/osu-tracker fora do Windows).
+
+import os
+
+projeto = os.path.dirname(SPECPATH)
+
+a = Analysis(
+    [os.path.join(SPECPATH, "executavel.py")],
+    pathex=[projeto],
+    # Os scripts de inicio com o Windows vao junto: a janela os usa.
+    datas=[
+        (os.path.join(SPECPATH, "instalar.ps1"), "windows"),
+        (os.path.join(SPECPATH, "desinstalar.ps1"), "windows"),
+    ],
+    hiddenimports=["osu_tracker.janela"],  # importado so quando a janela abre
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    name="osu-tracker",
+    console=False,  # duplo clique abre so a janela; o detector roda sem console
+    upx=False,
+)
