@@ -436,9 +436,12 @@ class TestComandoMarcar(unittest.TestCase):
             self.assertEqual(skillsets.classificar(con)[5]["tipos"], ["stream", "jump"])
             con.close()
             self.assertEqual(rodar("5", "--limpar")[0], 0)
+            # fecha antes de sair do with: no Windows a pasta temporaria nao apaga arquivo aberto
             con = db.conectar(Path(tmp) / "osu_tracker.sqlite3")
-            self.addCleanup(con.close)
-            self.assertEqual(skillsets.carregar_marcacoes(con), {})
+            try:
+                self.assertEqual(skillsets.carregar_marcacoes(con), {})
+            finally:
+                con.close()
 
 
 if __name__ == "__main__":
