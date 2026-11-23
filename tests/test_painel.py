@@ -245,9 +245,18 @@ class TestRotas(unittest.TestCase):
         erro.exception.close()
         self.assertEqual(erro.exception.code, 422)
 
-    def test_banco_antigo_sem_tabelas_avisa(self):
-        sqlite3.connect(self.banco).execute("CREATE TABLE jogadas (score_id INTEGER)").connection.close()
-        self.assertIn("Não consegui ler o banco", self.api()["aviso"])
+    def test_banco_sem_tabelas_nem_colunas_e_migrado_sem_quebrar(self):
+        con = sqlite3.connect(self.banco)
+        with con:
+            con.execute("CREATE TABLE jogadas (score_id INTEGER)")
+            con.execute("INSERT INTO jogadas VALUES (7)")
+        con.close()
+        d = self.api()
+        self.assertIsNone(d["aviso"])
+        self.assertEqual(d["resumo"]["jogadas"], 0)  # sem ruleset nem notas: nao entra nas contas
+        con = sqlite3.connect(self.banco)
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute("SELECT score_id FROM jogadas").fetchall(), [(7,)])  # nada se perde
 
     def test_nao_escreve_no_banco(self):
         con = db.conectar(self.banco)

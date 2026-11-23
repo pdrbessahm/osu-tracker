@@ -110,21 +110,55 @@ CREATE TABLE IF NOT EXISTS coletas (
 def conectar(caminho: Path) -> sqlite3.Connection:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(caminho)
-    con.executescript(SCHEMA)
-    _migrar(con)
+    try:
+        migrar(con)
+    except BaseException:
+        con.close()
+        raise
     return con
 
 
-def _migrar(con: sqlite3.Connection) -> None:
-    """Atualiza bancos criados por versoes anteriores, sem perder nada."""
-    colunas = {linha[1] for linha in con.execute("PRAGMA table_info(jogadas)")}
+def _colunas_do_schema() -> dict[str, list[tuple[str, str]]]:
+    """Tabela -> (coluna, tipo) como o SCHEMA atual define, lido de um banco em memoria."""
+    ref = sqlite3.connect(":memory:")
+    try:
+        ref.executescript(SCHEMA)
+        tabelas = [r[0] for r in ref.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+        return {t: [(r[1], r[2]) for r in ref.execute(f"PRAGMA table_info({t})")] for t in tabelas}
+    finally:
+        ref.close()
+
+
+def _faltando(con: sqlite3.Connection) -> dict[str, list[tuple[str, str]]]:
+    """Colunas do SCHEMA atual que nao existem no banco (tabela inteira ausente nao entra: o SCHEMA cria)."""
+    faltando = {}
+    for tabela, colunas in _colunas_do_schema().items():
+        existentes = {r[1] for r in con.execute(f"PRAGMA table_info({tabela})")}
+        if existentes and (falta := [c for c in colunas if c[0] not in existentes]):
+            faltando[tabela] = falta
+    return faltando
+
+
+def precisa_migrar(con: sqlite3.Connection) -> bool:
+    """True se o banco veio de uma versao anterior e falta tabela, coluna ou preenchimento. So le."""
+    tabelas = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if set(_colunas_do_schema()) - tabelas or _faltando(con):
+        return True
+    return con.execute("SELECT 1 FROM jogadas WHERE mods_chave IS NULL AND raw_json IS NOT NULL LIMIT 1").fetchone() is not None
+
+
+def migrar(con: sqlite3.Connection) -> None:
+    """Leva um banco de qualquer versao anterior ao schema atual, sem perder nada. Pode rodar quantas vezes quiser."""
     with con:
-        for nome, tipo in (("mods_chave", "TEXT"), ("fracao_jogada", "REAL")):
-            if nome not in colunas:
-                con.execute(f"ALTER TABLE jogadas ADD COLUMN {nome} {tipo}")
+        # Coluna nova entra sem NOT NULL nem DEFAULT calculado, que o ALTER TABLE do SQLite nao aceita.
+        for tabela, colunas in _faltando(con).items():
+            for nome, tipo in colunas:
+                con.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}")
+    con.executescript(SCHEMA)  # depois das colunas: tabelas que faltam e indices
+    with con:
         con.execute("CREATE INDEX IF NOT EXISTS idx_jogadas_mapa_mods ON jogadas (beatmap_id, ruleset_id, mods_chave)")
         # Jogadas gravadas antes do enriquecimento: tudo sai do raw_json, sem chamar a API.
-        antigas = con.execute("SELECT raw_json FROM jogadas WHERE mods_chave IS NULL").fetchall()
+        antigas = con.execute("SELECT raw_json FROM jogadas WHERE mods_chave IS NULL AND raw_json IS NOT NULL").fetchall()
         if antigas:
             scores = [json.loads(r[0]) for r in antigas]
             mapas.gravar_mapas(con, [_linha_mapa(s) for s in scores if s.get("beatmap")])

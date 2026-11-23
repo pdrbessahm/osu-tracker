@@ -1,7 +1,8 @@
 """Painel de analise: um servidor web local (FastAPI + uvicorn) que le o banco e mostra os graficos.
 
 So escuta em 127.0.0.1, numa porta livre, e so le o banco (abre em modo somente leitura,
-porque o detector pode estar gravando). A pagina e a biblioteca de graficos (plotly.js) vao
+porque o detector pode estar gravando). A unica escrita e a migracao de um banco criado por
+uma versao anterior, feita uma vez antes da primeira leitura. A pagina e a biblioteca de graficos (plotly.js) vao
 junto com o programa, entao funciona sem internet.
 """
 
@@ -18,7 +19,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analise, config
+from . import analise, config, db
 
 log = logging.getLogger("osu_tracker")
 
@@ -45,6 +46,24 @@ def _abrir_somente_leitura(caminho: Path) -> sqlite3.Connection:
     return sqlite3.connect(f"{caminho.resolve().as_uri()}?mode=ro", uri=True, timeout=5)
 
 
+def _migrar_se_preciso(caminho: Path) -> None:
+    """Banco criado por uma versao anterior: migra antes de ler (uma vez so; depois nao escreve mais).
+
+    Se nao der (arquivo somente leitura, disco cheio), segue sem migrar e a leitura mostra o aviso.
+    """
+    con = _abrir_somente_leitura(caminho)
+    try:
+        if not db.precisa_migrar(con):
+            return
+    finally:
+        con.close()
+    log.info("Banco de uma versão anterior: migrando %s", caminho)
+    try:
+        db.conectar(caminho).close()
+    except sqlite3.Error as e:
+        log.warning("Não consegui migrar o banco %s: %s", caminho, e)
+
+
 def criar_app(obter_banco: Callable[[], tuple[Path | None, str]] = banco_configurado) -> FastAPI:
     app = FastAPI(title="osu-tracker", docs_url=None, redoc_url=None, openapi_url=None)
     web = pasta_web()
@@ -64,6 +83,7 @@ def criar_app(obter_banco: Callable[[], tuple[Path | None, str]] = banco_configu
         if not caminho.exists():
             return {**vazio, "aviso": "Ainda não há jogadas no banco. Elas aparecem aqui depois da primeira coleta."}
         try:
+            _migrar_se_preciso(caminho)
             con = _abrir_somente_leitura(caminho)
         except sqlite3.Error as e:
             return {**vazio, "aviso": f"Não consegui abrir o banco ({caminho}): {e}"}
@@ -74,9 +94,9 @@ def criar_app(obter_banco: Callable[[], tuple[Path | None, str]] = banco_configu
                 **analise.painel(con, dias, mods),
             }
         except sqlite3.Error as e:
-            # Banco de uma versao antiga ainda nao migrado: o detector migra na proxima coleta.
+            # Banco antigo que nao deu para migrar aqui (ex.: arquivo somente leitura).
             return {**vazio, "aviso": f"Não consegui ler o banco ({caminho}): {e}. "
-                                      "Rode uma coleta com esta versão do osu-tracker e tente de novo."}
+                                      "Confira se o arquivo pode ser gravado e rode uma coleta com esta versão do osu-tracker."}
         finally:
             con.close()
 
