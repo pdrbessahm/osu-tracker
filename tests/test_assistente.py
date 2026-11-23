@@ -109,7 +109,8 @@ class TestAssistente(unittest.TestCase):
             dados = config.ler_arquivo()
             self.assertNotIn("osu_api", dados)
             self.assertEqual(dados["jogador"]["mode"], "osu")
-            self.assertEqual(dados["banco"]["caminho"], "/tmp/outro.sqlite3")
+            # no Windows o caminho volta com barra invertida: compara como caminho, nao como texto
+            self.assertEqual(Path(dados["banco"]["caminho"]), Path("/tmp/outro.sqlite3"))
             self.assertEqual(config.carregar().client_secret, SEGREDO_FALSO)
 
     def test_ja_configurado_nao_muda_sem_confirmar(self):
