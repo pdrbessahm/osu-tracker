@@ -14,7 +14,10 @@ inclusive de um arquivo .env na pasta do projeto); o ambiente tem prioridade.
 import json
 import os
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10: o mesmo leitor, pelo pacote tomli
+    import tomli as tomllib
 from dataclasses import dataclass
 from pathlib import Path
 

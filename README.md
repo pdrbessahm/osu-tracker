@@ -19,7 +19,7 @@ Feito primeiro para Windows com osu!stable, mas tambem roda no Linux e no macOS 
 
 ## Requisitos
 
-- Python 3.11 ou mais novo (no Windows, pela Microsoft Store ou por python.org).
+- Python 3.10 ou mais novo (no Windows, pela Microsoft Store ou por python.org).
 - Uma conta no osu!.
 
 ## Instalacao
