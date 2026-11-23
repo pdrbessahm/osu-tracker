@@ -1,13 +1,20 @@
 """Assistente de configuracao da primeira execucao."""
 
 import getpass
+import re
 from collections.abc import Callable
 from pathlib import Path
 
 from . import config
-from .api import ApiError, NaoEncontrado, OsuApi
+from .api import ApiError, CredenciaisRecusadas, NaoEncontrado, OsuApi
 
 TENTATIVAS = 3
+
+# No console do Windows o Ctrl+V nao cola no campo escondido: chega o caractere de controle no lugar do texto
+DICA_COLAR = (
+    "No Windows, se o Ctrl+V nao colar, clique com o botao direito do mouse dentro da janela para colar "
+    "(ou use o Windows Terminal). O texto nao aparece enquanto voce cola, e normal."
+)
 
 COMO_CRIAR_APP = """\
 O osu-tracker le suas jogadas pela API oficial do osu!, com um app OAuth seu
@@ -74,15 +81,25 @@ class Assistente:
                 segredo = self.senha("Client Secret (nao aparece ao digitar; Enter mantem o atual): ").strip()
             except EOFError:
                 raise Cancelado from None
-            segredo = segredo or str(atual.get("client_secret", ""))
+            # espaco ou quebra de linha que vem junto ao colar nao faz parte do secret
+            segredo = re.sub(r"\s+", "", segredo) or str(atual.get("client_secret", ""))
             if not segredo:
-                self.saida("Falta o Client Secret. Tente de novo.")
+                self.saida("Falta o Client Secret. Tente de novo.\n" + DICA_COLAR)
+                continue
+            if not segredo.isprintable() or not segredo.isascii():
+                self.saida("O que chegou nao parece um Client Secret: a colagem nao funcionou.\n" + DICA_COLAR)
                 continue
             api = self.criar_api(client_id, segredo)
             try:
                 api.autenticar()
-            except ApiError:
-                self.saida("O osu! recusou essas credenciais. Confira o Client ID e o Client Secret.")
+            except CredenciaisRecusadas:
+                self.saida(
+                    "O osu! recusou essas credenciais. Confira se o Client ID e o Client Secret sao do mesmo app "
+                    "e, se voce clicou em \"Reset client secret\", use o novo.\n" + DICA_COLAR
+                )
+                continue
+            except ApiError as e:
+                self.saida(f"Nao consegui falar com o osu!: {e} Confira a internet e tente de novo.")
                 continue
             self.saida("Credenciais aceitas.")
             return api, {"client_id": client_id, "client_secret": segredo}

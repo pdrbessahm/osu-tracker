@@ -8,7 +8,7 @@ from unittest import mock
 
 from osu_tracker import __main__ as cli
 from osu_tracker import config
-from osu_tracker.api import ApiError, NaoEncontrado
+from osu_tracker.api import ApiError, CredenciaisRecusadas, NaoEncontrado
 from osu_tracker.assistente import Assistente
 
 CLIENT_ID = "12345"
@@ -21,7 +21,7 @@ class ApiFalsa:
 
     def autenticar(self):
         if not self.ok:
-            raise ApiError("HTTP 401")
+            raise CredenciaisRecusadas("HTTP 401")
 
     def buscar_usuario(self, texto, mode=None):
         if texto.lstrip("@").lower() in ("jogadorteste", "424242"):
@@ -75,6 +75,28 @@ class TestAssistente(unittest.TestCase):
         self.assertEqual((cfg.user_id, cfg.client_secret), (424242, SEGREDO_FALSO))
         self.assertEqual(cfg.db_path, Path(self.tmp.name) / config.BANCO_PADRAO)
         self.assertEqual(cfg.intervalo_coleta, config.INTERVALO_COLETA_PADRAO)
+
+    def test_ctrl_v_no_console_do_windows_nao_vira_segredo(self):
+        # no console do Windows o Ctrl+V chega como o caractere de controle \x16; com espaco e quebra de linha colados junto, vale
+        codigo = self.rodar([CLIENT_ID, CLIENT_ID, "JogadorTeste", "s", ""], ["\x16", f"  {SEGREDO_FALSO}\r\n"])
+        self.assertEqual(codigo, 0)
+        texto = "\n".join(self.telas)
+        self.assertIn("a colagem nao funcionou", texto)
+        self.assertIn("botao direito", texto)
+        self.assertNotIn("recusou", texto)
+
+    def test_sem_internet_nao_diz_que_recusou(self):
+        class ApiSemRede(ApiFalsa):
+            def autenticar(self):
+                raise ApiError("Nao consegui pedir o token ao osu! (Sem resposta de https://osu.ppy.sh/oauth/token).")
+
+        respostas, senhas = iter([CLIENT_ID]), iter([SEGREDO_FALSO])
+        a = Assistente(entrada=lambda _: next(respostas, CLIENT_ID), senha=lambda _: next(senhas, SEGREDO_FALSO),
+                       saida=self.telas.append, criar_api=ApiSemRede)
+        self.assertNotEqual(a.executar(), 0)
+        texto = "\n".join(self.telas)
+        self.assertIn("Nao consegui falar com o osu!", texto)
+        self.assertNotIn("recusou", texto)
 
     def test_credenciais_do_ambiente_nao_sao_gravadas(self):
         with mock.patch.object(config, "credenciais_do_ambiente", return_value=(CLIENT_ID, SEGREDO_FALSO)):

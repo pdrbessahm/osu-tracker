@@ -50,6 +50,9 @@ Rode o assistente:
 
 (no Linux e no macOS, `.venv/bin/python -m osu_tracker configurar`)
 
+O Client Secret nao aparece enquanto voce digita ou cola.
+No PowerShell e no Prompt de Comando, o Ctrl+V nao cola nesse campo: clique com o botao direito do mouse dentro da janela para colar (no Windows Terminal, o Ctrl+V funciona).
+
 Ele explica e pede duas coisas:
 
 1. Um app OAuth seu no osu!, que permite ler suas jogadas pela API.

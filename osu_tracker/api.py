@@ -35,6 +35,10 @@ class _NaoAutorizado(ApiError):
     pass
 
 
+class CredenciaisRecusadas(ApiError):
+    """O osu! respondeu e recusou o client ID ou o client secret."""
+
+
 class OsuApi:
     def __init__(self, client_id: str, client_secret: str):
         self._client_id = client_id
@@ -88,7 +92,10 @@ class OsuApi:
         try:
             dados = self._requisitar(req)
         except ApiError as e:
-            raise ApiError(f"Token recusado ({e}). Confira o client ID e o client secret do app OAuth.") from None
+            # 400 e 401 sao o osu! dizendo que o par ID e secret nao vale; o resto e rede ou servidor
+            if isinstance(e, _NaoAutorizado) or str(e).startswith("HTTP 400"):
+                raise CredenciaisRecusadas(f"Token recusado ({e}). Confira o client ID e o client secret do app OAuth.") from None
+            raise ApiError(f"Nao consegui pedir o token ao osu! ({e}).") from None
         self._token = dados["access_token"]
         # Renova com 5 min de folga antes de expirar.
         self._expira = time.monotonic() + float(dados.get("expires_in", 3600)) - 300
