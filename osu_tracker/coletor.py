@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone
 
-from . import config, db
+from . import config, db, mapas
 from .api import ApiError, OsuApi
 from .trava import Ocupada, Trava
 
@@ -50,11 +50,19 @@ def _coletar(cfg: config.Config, api: OsuApi, motivo: str) -> int:
                 )
             total = con.execute("SELECT COUNT(*) FROM jogadas").fetchone()[0]
             log.info("Coleta (%s) ok: %d recebidas, %d novas, %d no banco", motivo, len(scores), novas, total)
-            return OK
         except (ApiError, KeyError, ValueError) as e:
             with con:
                 con.execute("UPDATE coletas SET fim = ?, erro = ? WHERE id = ?", (_agora(), str(e), coleta_id))
             log.error("Coleta (%s) falhou: %s", motivo, e)
             return FALHOU
+        # As jogadas ja estao salvas: um problema no enriquecimento fica no log e a proxima coleta continua.
+        try:
+            buscados, faltam = mapas.enriquecer(con, api)
+        except (KeyError, ValueError, TypeError) as e:
+            log.error("Enriquecimento dos mapas falhou: %r", e)
+        else:
+            if buscados or faltam:
+                log.info("Mapas: %d combinacoes de mods enriquecidas, %d para as proximas coletas", buscados, faltam)
+        return OK
     finally:
         con.close()

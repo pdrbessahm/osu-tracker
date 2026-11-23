@@ -27,7 +27,11 @@ class ApiError(RuntimeError):
     pass
 
 
-class NaoEncontrado(ApiError):
+class RespostaRecusada(ApiError):
+    """O osu! respondeu com erro 4xx: repetir o mesmo pedido nao adianta."""
+
+
+class NaoEncontrado(RespostaRecusada):
     pass
 
 
@@ -66,6 +70,8 @@ class OsuApi:
                     raise _NaoAutorizado(f"HTTP 401 em {req.full_url}") from None
                 if e.code == 404:
                     raise NaoEncontrado(f"HTTP 404 em {req.full_url}") from None
+                if 400 <= e.code < 500:
+                    raise RespostaRecusada(f"HTTP {e.code} em {req.full_url}") from None
                 raise ApiError(f"HTTP {e.code} em {req.full_url}") from None
             except urllib.error.URLError as e:
                 atraso = 2 ** (tentativa + 1)
@@ -104,15 +110,24 @@ class OsuApi:
         url = f"{BASE}/api/v2{caminho}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
+        return self._chamar(url)
+
+    def post(self, caminho: str, corpo: dict):
+        return self._chamar(f"{BASE}/api/v2{caminho}", json.dumps(corpo).encode())
+
+    def _chamar(self, url: str, corpo: bytes | None = None):
         for tentativa in range(2):
             if self._token is None or time.monotonic() >= self._expira:
                 self.autenticar()
-            req = urllib.request.Request(url, headers={
+            cabecalhos = {
                 "Accept": "application/json",
                 "Authorization": f"Bearer {self._token}",
                 "x-api-version": API_VERSION,
                 "User-Agent": USER_AGENT,
-            })
+            }
+            if corpo is not None:
+                cabecalhos["Content-Type"] = "application/json"
+            req = urllib.request.Request(url, data=corpo, headers=cabecalhos)
             try:
                 return self._requisitar(req)
             except _NaoAutorizado:
@@ -120,6 +135,11 @@ class OsuApi:
                 self._token = None
                 if tentativa:
                     raise ApiError(f"HTTP 401 em {url} mesmo com token novo") from None
+
+    def atributos_dificuldade(self, beatmap_id: int, mods: list[dict], ruleset_id: int) -> dict:
+        """Atributos de dificuldade do mapa com os mods aplicados (POST /beatmaps/{id}/attributes)."""
+        resposta = self.post(f"/beatmaps/{beatmap_id}/attributes", {"mods": mods, "ruleset_id": ruleset_id})
+        return resposta["attributes"]
 
     def buscar_usuario(self, id_ou_nick: str, mode: str | None = None) -> dict:
         """Jogador pelo ID numerico ou pelo nick (com ou sem @ na frente).

@@ -3,7 +3,7 @@
 Guarda automaticamente toda jogada sua de osu!, inclusive os fails, num banco no seu proprio PC.
 A ideia e transformar esse historico em decisoes de treino: que mapa farmar, que habilidade treinar e se os seus misses estao caindo.
 
-Estado atual: coleta automatica.
+Estado atual: coleta automatica e dificuldade de cada mapa com os mods que voce usou.
 O painel com os graficos vem nas proximas versoes.
 
 ## O que ele faz
@@ -126,10 +126,30 @@ Tambem so roda um detector por vez.
 - A API do osu! so mostra as jogadas recentes por um tempo limitado, por isso a coleta acontece enquanto voce joga.
   Se uma coleta falhar (internet caiu, PC desligou logo depois do jogo), a proxima sessao recupera o que ainda estiver na API.
 - Respeita os termos da API: no maximo 1 requisicao por segundo, bem abaixo do limite de 60 por minuto, com espera progressiva em erro.
-  Uma coleta usa 1 a 3 requisicoes e o token de acesso e reaproveitado.
+  Uma coleta usa 1 a 3 requisicoes, mais uma por combinacao de mapa e mods ainda nao vista, e o token de acesso e reaproveitado.
 - Cada jogada guarda a resposta completa da API (`raw_json`) e os principais campos em colunas: misses, 300/100/50, acc, combo, mods, pp e se passou.
 - Em fail, os contadores e o `rank` cobrem so o trecho jogado, nao o mapa inteiro.
+  A coluna `fracao_jogada` diz ate onde voce chegou: notas julgadas (300, 100, 50 e miss) sobre o total de notas do mapa, 1 num pass.
+  So e calculada no osu! standard.
 - `accuracy` vai de 0 a 1 e conta os misses.
+
+## Mapas
+
+Depois de cada coleta, o osu-tracker guarda a dificuldade dos mapas que voce jogou, com os mods de cada jogada:
+
+- `mapas`: dados do mapa sem mods (artista, titulo, dificuldade, BPM, duracao, AR, OD, CS, HP, numero de notas).
+  Vem junto com a jogada, sem consulta extra.
+- `mapas_mods`: uma linha por mapa e combinacao de mods, com SR, aim, speed, slider factor, combo maximo e os demais atributos da API (resposta completa em `atributos_json`), mais BPM, duracao, AR, OD, CS e HP ja com os mods.
+  A jogada liga com ela pela coluna `mods_chave` (vazia = sem mods, ex.: `HDHR`).
+
+Cada combinacao e consultada uma vez so e fica guardada.
+NF, SD, PF e CL nao mudam a dificuldade e nao contam como combinacao diferente.
+Cada coleta consulta no maximo 50 combinacoes novas (cerca de 50 segundos); o que sobrar fica para as proximas.
+Se o mapa for atualizado pelo mapper, os atributos dele sao consultados de novo.
+
+A API nao devolve AR e OD com mods, entao eles sao calculados aqui (HR, EZ, Difficulty Adjust, DT/NC e HT/DC).
+A API tambem ignora velocidade customizada do lazer (por exemplo DT a 1.3x) e calcula SR, aim e speed como 1.5x.
+Nesses casos BPM, duracao, AR e OD usam a velocidade real (`taxa`) e a coluna `taxa_api` mostra a velocidade usada pela API.
 
 ## Testes
 
