@@ -24,9 +24,9 @@ MUDANCA_TENDENCIA = 0.10     # 10% para mais ou para menos conta como subindo ou
 
 CONSULTA = """
 SELECT j.score_id, j.beatmap_id, j.ended_at, j.passed, j.mods_chave, j.accuracy,
-       j.n_great, j.n_ok, j.n_meh, j.n_miss, j.fracao_jogada,
+       j.n_great, j.n_ok, j.n_meh, j.n_miss, j.fracao_jogada, j.pp, j.combo_perfeito,
        COALESCE(mm.star_rating, m.estrelas) AS estrelas,
-       mm.aim_difficulty AS aim, mm.speed_difficulty AS speed,
+       mm.aim_difficulty AS aim, mm.speed_difficulty AS speed, COALESCE(mm.od, m.od) AS od,
        m.artista, m.titulo, m.versao,
        COALESCE(m.count_circles, 0) + COALESCE(m.count_sliders, 0) + COALESCE(m.count_spinners, 0) AS notas_mapa
 FROM jogadas j
@@ -54,10 +54,18 @@ class Jogada:
     speed: float | None
     nome_mapa: str
     notas_mapa: int
+    pp: float | None = None
+    od: float | None = None
+    combo_perfeito: bool = False
 
     @property
     def julgadas(self) -> int:
         return self.n300 + self.n100 + self.n50 + self.misses
+
+    @property
+    def fc(self) -> bool:
+        """FC como o jogo mostra: passou, sem miss e sem quebrar o combo (slider break)."""
+        return self.passou and self.misses == 0 and self.combo_perfeito
 
 
 def nome_mods(chave: str) -> str:
@@ -91,6 +99,7 @@ def carregar(con: sqlite3.Connection, dias: int | None = None, mods: str | None 
             mods=r["mods_chave"] or "", n300=r["n_great"], n100=r["n_ok"], n50=r["n_meh"], misses=r["n_miss"],
             fracao=r["fracao_jogada"], estrelas=r["estrelas"], aim=r["aim"], speed=r["speed"],
             nome_mapa=_nome_mapa(r), notas_mapa=r["notas_mapa"],
+            pp=r["pp"], od=r["od"], combo_perfeito=bool(r["combo_perfeito"]),
         )
         for r in con.execute(sql, parametros)
     ]
@@ -268,7 +277,7 @@ def sugestoes(jogadas: list[Jogada], limite: int = LIMITE_SUGESTOES) -> list[dic
         s = _soma(tentativas)
         if s["notas"] < AMOSTRA_MINIMA_SUGESTAO or not ultima.notas_mapa:
             continue
-        if any(j.passou and j.misses == 0 for j in tentativas):
+        if any(j.fc for j in tentativas):
             continue  # ja tem FC
         saida.append({
             "beatmap_id": beatmap_id,

@@ -162,10 +162,12 @@ class TestSecoes(Banco):
             # amostra curta demais (40 notas), mesmo sem miss
             score(3, beatmap=mapa(3), stats=stats(great=40, miss=0)),
             # ja tem FC
-            score(4, beatmap=mapa(4, notas=150), stats=stats(great=150, miss=0), passed=True),
+            score(4, beatmap=mapa(4, notas=150), stats=stats(great=150, miss=0), passed=True, is_perfect_combo=True),
+            # passou sem miss mas quebrou o combo num slider: nao e FC, continua na lista
+            score(5, beatmap=mapa(5, notas=150), stats=stats(great=150, miss=0), passed=True, is_perfect_combo=False),
         )
         s = analise.painel(self.con)["sugestoes"]
-        self.assertEqual([(m["beatmap_id"], m["misses_estimados"]) for m in s], [(2, 5.0), (1, 10.0)])
+        self.assertEqual([(m["beatmap_id"], m["misses_estimados"]) for m in s], [(5, 0.0), (2, 5.0), (1, 10.0)])
 
     def test_por_dia_usa_o_fuso_local(self):
         self.gravar(score(1, ended_at="2026-11-22T12:00:00Z"), score(2, ended_at="2026-11-23T12:00:00Z"))

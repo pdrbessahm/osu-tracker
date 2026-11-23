@@ -1,9 +1,10 @@
 """Painel de analise: um servidor web local (FastAPI + uvicorn) que le o banco e mostra os graficos.
 
-So escuta em 127.0.0.1, numa porta livre, e so le o banco (abre em modo somente leitura,
-porque o detector pode estar gravando). A unica escrita e a migracao de um banco criado por
-uma versao anterior, feita uma vez antes da primeira leitura. A pagina e a biblioteca de graficos (plotly.js) vao
-junto com o programa, entao funciona sem internet.
+So escuta em 127.0.0.1, numa porta livre, e le o banco em modo somente leitura (o detector
+pode estar gravando). Escreve so em dois casos: a migracao de um banco criado por uma versao
+anterior, uma vez antes da primeira leitura, e a marcacao do tipo de um mapa feita pelo jogador
+na aba Progresso. A pagina e a biblioteca de graficos (plotly.js) vao junto com o programa,
+entao funciona sem internet.
 """
 
 import logging
@@ -15,11 +16,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from . import analise, config, db
+from . import analise, config, db, progresso, skillsets
 
 log = logging.getLogger("osu_tracker")
 
@@ -100,7 +102,61 @@ def criar_app(obter_banco: Callable[[], tuple[Path | None, str]] = banco_configu
         finally:
             con.close()
 
+    def _ler(funcao):
+        """Abre o banco so para leitura e chama funcao(con); sem banco devolve o aviso."""
+        caminho, jogador = obter_banco()
+        vazio = {"jogador": jogador, "aviso": None}
+        if caminho is None:
+            return {**vazio, "aviso": "O osu-tracker ainda não foi configurado: abra a janela e preencha a aba Configuração."}
+        if not caminho.exists():
+            return {**vazio, "aviso": "Ainda não há dados no banco. Eles aparecem aqui depois da primeira coleta."}
+        try:
+            _migrar_se_preciso(caminho)
+            con = _abrir_somente_leitura(caminho)
+        except sqlite3.Error as e:
+            return {**vazio, "aviso": f"Não consegui abrir o banco ({caminho}): {e}"}
+        try:
+            return {**vazio, **funcao(con)}
+        except sqlite3.Error as e:
+            return {**vazio, "aviso": f"Não consegui ler o banco ({caminho}): {e}."}
+        finally:
+            con.close()
+
+    @app.get("/api/progresso")
+    def dados_progresso():
+        return _ler(progresso.progresso)
+
+    @app.post("/api/marcacoes")
+    def gravar_marcacao(pedido: Marcacao):
+        """A unica escrita do painel: o tipo de um mapa marcado pelo jogador (e o modelo treinado de novo)."""
+        caminho, _ = obter_banco()
+        if caminho is None or not caminho.exists():
+            raise HTTPException(409, "Ainda não há banco para gravar a marcação.")
+        try:
+            con = db.conectar(caminho)
+        except sqlite3.Error as e:
+            raise HTTPException(503, f"Não consegui abrir o banco para gravar: {e}") from None
+        try:
+            if pedido.limpar:
+                skillsets.desmarcar(con, pedido.beatmap_id)
+            else:
+                skillsets.marcar(con, pedido.beatmap_id, set(pedido.tipos))
+            retreinados = skillsets.atualizar_modelos(con)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        except sqlite3.Error as e:
+            raise HTTPException(503, f"Não consegui gravar a marcação: {e}") from None
+        finally:
+            con.close()
+        return {"ok": True, "retreinados": retreinados}
+
     return app
+
+
+class Marcacao(BaseModel):
+    beatmap_id: int = Field(gt=0)
+    tipos: list[str] = []          # vazio = nenhum dos tipos
+    limpar: bool = False           # tira a marcacao: o mapa volta para o classificador
 
 
 class Servidor:

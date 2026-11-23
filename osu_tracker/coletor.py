@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone
 
-from . import config, db, mapas
+from . import config, db, mapas, perfil, skillsets
 from .api import ApiError, OsuApi
 from .trava import Ocupada, Trava
 
@@ -63,6 +63,20 @@ def _coletar(cfg: config.Config, api: OsuApi, motivo: str) -> int:
         else:
             if buscados or faltam:
                 log.info("Mapas: %d combinacoes de mods enriquecidas, %d para as proximas coletas", buscados, faltam)
+        try:
+            if perfil.registrar_se_preciso(con, api, cfg.user_id, cfg.mode):
+                log.info("Foto do perfil de hoje gravada")
+        except ApiError as e:
+            log.error("Foto do perfil falhou, tenta de novo na proxima coleta: %s", e)
+        except Exception:  # noqa: BLE001 - as jogadas ja estao salvas; um erro aqui nao pode parar o detector
+            log.exception("Foto do perfil falhou, tenta de novo na proxima coleta")
+        try:
+            lidos, faltam = skillsets.ler_mapas(con, api, skillsets.pasta_osu(cfg.db_path))
+            if lidos or faltam:
+                log.info("Arquivos .osu: %d mapas lidos, %d para as proximas coletas", lidos, faltam)
+            skillsets.atualizar_modelos(con)
+        except Exception:  # noqa: BLE001 - idem
+            log.exception("Leitura dos .osu ou treino do classificador falhou")
         return OK
     finally:
         con.close()

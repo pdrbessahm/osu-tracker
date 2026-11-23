@@ -6,6 +6,7 @@
     python -m osu_tracker detectar     so o detector
     python -m osu_tracker janela       janela de configuracao e status (padrao no osu-tracker.exe)
     python -m osu_tracker painel       painel com os graficos, no navegador
+    python -m osu_tracker marcar       marca o tipo de um mapa (stream, jump, tech, alternate ou nenhum)
 """
 
 import argparse
@@ -102,6 +103,51 @@ def cmd_painel(args) -> int:
     return 0
 
 
+def cmd_marcar(args) -> int:
+    """Marca o tipo de um mapa, ou lista os mapas que mais ensinariam o classificador."""
+    from . import db, skillsets
+    registro.configurar()
+    cfg = _carregar()
+    if cfg is None:
+        return coletor.SEM_CONFIG
+    con = db.conectar(cfg.db_path)
+    try:
+        if args.sugerir or args.beatmap_id is None:
+            classes = skillsets.classificar(con)
+            nomes = dict(con.execute("SELECT beatmap_id, COALESCE(artista || ' - ', '') || titulo || ' [' || versao || ']' FROM mapas"))
+            sugeridos = skillsets.para_marcar(classes)
+            if not sugeridos:
+                print("Nenhum mapa para marcar: ainda nao ha mapas lidos sem marcacao.")
+            for bid, tipo, conf in sugeridos:
+                tipos = ", ".join(classes[bid]["tipos"]) or "nenhum"
+                print(f"{bid}  {nomes.get(bid) or 'Mapa ' + str(bid)}\n    agora: {tipos}; mais duvida em {tipo} ({conf:.0%})")
+            return 0
+        if args.limpar:
+            skillsets.desmarcar(con, args.beatmap_id)
+            print(f"Marcacao do mapa {args.beatmap_id} removida: volta a valer o classificador.")
+        else:
+            tipos = set(args.tipos)
+            if not tipos:
+                print("Diga os tipos (stream, jump, tech, alternate) ou nenhum.", file=sys.stderr)
+                return 2
+            if "nenhum" in tipos:
+                if len(tipos) > 1:
+                    print("'nenhum' nao combina com outros tipos.", file=sys.stderr)
+                    return 2
+                tipos = set()
+            try:
+                skillsets.marcar(con, args.beatmap_id, tipos)
+            except ValueError as e:
+                print(e, file=sys.stderr)
+                return 2
+            print(f"Mapa {args.beatmap_id} marcado como {', '.join(sorted(tipos)) or 'nenhum'}.")
+        for tipo in skillsets.atualizar_modelos(con):
+            print(f"Modelo de {tipo} treinado de novo.")
+        return 0
+    finally:
+        con.close()
+
+
 def _usar_console_de_quem_chamou() -> None:
     """O osu-tracker.exe e de janela (sem console proprio, para o duplo clique nao abrir um console).
 
@@ -163,6 +209,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--porta", type=int, default=0, help="porta em 127.0.0.1 (padrao: uma livre)")
     p.add_argument("--sem-navegador", action="store_true", help="so sobe o painel, sem abrir o navegador")
     p.set_defaults(func=cmd_painel)
+
+    p = sub.add_parser("marcar", help="marca o tipo de um mapa (ensina o classificador de skillsets)",
+                       description="Ex.: marcar 5587991 stream jump | marcar 5587991 nenhum | "
+                                   "marcar 5587991 --limpar | marcar --sugerir")
+    p.add_argument("beatmap_id", type=int, nargs="?", help="ID do beatmap (a dificuldade, nao o set)")
+    p.add_argument("tipos", nargs="*", metavar="tipo", help="stream, jump, tech, alternate (um ou mais) ou nenhum")
+    p.add_argument("--limpar", action="store_true", help="tira a marcacao do mapa")
+    p.add_argument("--sugerir", action="store_true", help="lista os mapas em que o classificador tem mais duvida")
+    p.set_defaults(func=cmd_marcar)
 
     if argv is None:
         argv = sys.argv[1:]

@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS jogadas (
     raw_json            TEXT NOT NULL,         -- resposta completa, inclui beatmap e beatmapset
     coletado_em         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     mods_chave          TEXT,                  -- mods que mudam a dificuldade (liga com mapas_mods)
-    fracao_jogada       REAL                   -- notas julgadas / notas do mapa (1 no pass; so osu! standard)
+    fracao_jogada       REAL,                  -- notas julgadas / notas do mapa (1 no pass; so osu! standard)
+    combo_perfeito      INTEGER                -- is_perfect_combo (lazer) ou legacy_perfect (stable) da API
 );
 CREATE INDEX IF NOT EXISTS idx_jogadas_beatmap ON jogadas (beatmap_id);
 CREATE INDEX IF NOT EXISTS idx_jogadas_ended ON jogadas (ended_at);
@@ -104,6 +105,65 @@ CREATE TABLE IF NOT EXISTS coletas (
     novas       INTEGER,
     erro        TEXT
 );
+
+-- Foto do perfil na primeira coleta de cada dia (dia no relogio deste PC).
+CREATE TABLE IF NOT EXISTS perfil_diario (
+    user_id         INTEGER NOT NULL,
+    modo            TEXT NOT NULL,
+    dia             TEXT NOT NULL,             -- AAAA-MM-DD
+    coletado_em     TEXT NOT NULL,
+    pp              REAL,
+    rank_global     INTEGER,
+    rank_pais       INTEGER,
+    acuracia        REAL,                      -- 0 a 1
+    play_count      INTEGER,
+    ranked_score    INTEGER,
+    nivel           REAL,                      -- nivel atual + progresso (ex.: 101.37)
+    raw_json        TEXT,                      -- statistics completo da API
+    PRIMARY KEY (user_id, modo, dia)
+);
+
+-- Rank global dia a dia: rank_history da API (90 dias) atualizado a cada foto.
+CREATE TABLE IF NOT EXISTS rank_historico (
+    user_id         INTEGER NOT NULL,
+    modo            TEXT NOT NULL,
+    dia             TEXT NOT NULL,
+    rank_global     INTEGER,                   -- NULL = sem rank naquele dia
+    importado_em    TEXT NOT NULL,
+    PRIMARY KEY (user_id, modo, dia)
+);
+
+-- Features do .osu de cada mapa (arquivo_osu.features), na versao do extrator que as calculou.
+CREATE TABLE IF NOT EXISTS mapas_osu (
+    beatmap_id      INTEGER PRIMARY KEY,
+    checksum        TEXT,                      -- checksum do mapa na API quando o .osu foi lido
+    versao          INTEGER NOT NULL,
+    features_json   TEXT,
+    erro            TEXT,
+    lido_em         TEXT NOT NULL
+);
+
+-- Tipo do mapa marcado pelo jogador: vale acima do classificador. Uma linha por tipo (1 = sim, 0 = nao).
+CREATE TABLE IF NOT EXISTS marcacoes (
+    beatmap_id      INTEGER NOT NULL,
+    tipo            TEXT NOT NULL,             -- stream, jump, tech, alternate
+    valor           INTEGER NOT NULL,
+    marcado_em      TEXT NOT NULL,
+    PRIMARY KEY (beatmap_id, tipo)
+);
+
+-- Modelo treinado com as marcacoes, por tipo (so existe com marcacoes suficientes).
+CREATE TABLE IF NOT EXISTS modelos (
+    tipo            TEXT PRIMARY KEY,
+    modelo_json     TEXT NOT NULL,             -- medias, desvios, pesos e intercepto
+    features_json   TEXT NOT NULL,             -- ordem das features dos pesos
+    positivos       INTEGER NOT NULL,
+    negativos       INTEGER NOT NULL,
+    precisao_cv     REAL,                      -- acuracia balanceada na validacao cruzada
+    precisao_regra  REAL,                      -- a da regra nas mesmas marcacoes, para comparar
+    assinatura      TEXT NOT NULL,             -- marcacoes usadas: muda -> treina de novo
+    treinado_em     TEXT NOT NULL
+);
 """
 
 
@@ -144,7 +204,9 @@ def precisa_migrar(con: sqlite3.Connection) -> bool:
     tabelas = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     if set(_colunas_do_schema()) - tabelas or _faltando(con):
         return True
-    return con.execute("SELECT 1 FROM jogadas WHERE mods_chave IS NULL AND raw_json IS NOT NULL LIMIT 1").fetchone() is not None
+    return con.execute(
+        "SELECT 1 FROM jogadas WHERE (mods_chave IS NULL OR combo_perfeito IS NULL) AND raw_json IS NOT NULL LIMIT 1"
+    ).fetchone() is not None
 
 
 def migrar(con: sqlite3.Connection) -> None:
@@ -157,13 +219,18 @@ def migrar(con: sqlite3.Connection) -> None:
     con.executescript(SCHEMA)  # depois das colunas: tabelas que faltam e indices
     with con:
         con.execute("CREATE INDEX IF NOT EXISTS idx_jogadas_mapa_mods ON jogadas (beatmap_id, ruleset_id, mods_chave)")
-        # Jogadas gravadas antes do enriquecimento: tudo sai do raw_json, sem chamar a API.
-        antigas = con.execute("SELECT raw_json FROM jogadas WHERE mods_chave IS NULL AND raw_json IS NOT NULL").fetchall()
+        # Jogadas gravadas por versoes anteriores: tudo sai do raw_json, sem chamar a API.
+        antigas = con.execute(
+            "SELECT raw_json, mods_chave IS NULL FROM jogadas "
+            "WHERE (mods_chave IS NULL OR combo_perfeito IS NULL) AND raw_json IS NOT NULL"
+        ).fetchall()
         if antigas:
             scores = [json.loads(r[0]) for r in antigas]
-            mapas.gravar_mapas(con, [_linha_mapa(s) for s in scores if s.get("beatmap")])
+            sem_mapa = [s for s, (_, falta_chave) in zip(scores, antigas) if falta_chave and s.get("beatmap")]
+            mapas.gravar_mapas(con, [_linha_mapa(s) for s in sem_mapa])
             con.executemany(
-                "UPDATE jogadas SET mods_chave = :mods_chave, fracao_jogada = :fracao_jogada WHERE score_id = :score_id",
+                "UPDATE jogadas SET mods_chave = :mods_chave, fracao_jogada = :fracao_jogada, "
+                "combo_perfeito = :combo_perfeito WHERE score_id = :score_id",
                 [_linha(s) for s in scores],
             )
 
@@ -205,6 +272,7 @@ def _linha(score: dict) -> dict:
         "raw_json": json.dumps(score, separators=(",", ":")),
         "mods_chave": mapas.chave_mods(mods),
         "fracao_jogada": mapas.fracao_jogada(stats, beatmap, score["ruleset_id"]) if beatmap else None,
+        "combo_perfeito": int(bool(score.get("is_perfect_combo") or score.get("legacy_perfect"))),
     }
 
 

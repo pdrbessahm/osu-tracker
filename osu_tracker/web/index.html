@@ -13,8 +13,12 @@
   <div>
     <h1>osu-tracker <span class="sub">Painel</span></h1>
     <p class="jogador" id="jogador"></p>
+    <nav class="abas" role="tablist" aria-label="Abas do painel">
+      <button type="button" role="tab" id="aba-analise" aria-selected="true" data-aba="analise">Análise</button>
+      <button type="button" role="tab" id="aba-progresso" aria-selected="false" data-aba="progresso">Progresso</button>
+    </nav>
   </div>
-  <div class="filtros" role="group" aria-label="Filtros">
+  <div class="filtros" id="filtros" role="group" aria-label="Filtros">
     <div class="filtro">
       <span class="rotulo">Período</span>
       <div class="segmentos" id="periodo">
@@ -31,7 +35,7 @@
   </div>
 </header>
 
-<main>
+<main id="painel-analise" role="tabpanel" aria-labelledby="aba-analise">
   <p class="aviso" id="aviso" hidden></p>
 
   <section class="blocos" id="resumo" aria-label="Resumo do período"></section>
@@ -92,7 +96,73 @@
   </section>
 </main>
 
+<main id="painel-progresso" role="tabpanel" aria-labelledby="aba-progresso" hidden>
+  <p class="aviso" id="p-aviso" hidden></p>
+
+  <section class="cartao">
+    <h2>Perfil</h2>
+    <p class="explica">Uma foto por dia, tirada na primeira coleta do dia. O rank global dos 90 dias anteriores
+      vem do histórico que o osu! guarda. A variação compara com a foto de 7 e de 30 dias atrás.</p>
+    <div class="blocos" id="p-perfil"></div>
+    <div class="multiplos dois">
+      <div><h3>Rank global</h3><div class="grafico" id="g-rank"></div><p class="vazio" id="v-rank" hidden></p></div>
+      <div><h3>pp</h3><div class="grafico" id="g-pp"></div><p class="vazio" id="v-pp" hidden></p></div>
+    </div>
+  </section>
+
+  <section class="cartao">
+    <h2>Estrelas por semana</h2>
+    <p class="explica">A maior dificuldade (estrelas com os mods) que você passou e a maior em que fez FC, semana a semana.
+      A linha pontilhada é a mais difícil que você tentou, para mostrar a distância até o teto.
+      FC conta como no jogo: passou, sem miss e sem quebrar o combo.</p>
+    <div class="blocos" id="p-estrelas"></div>
+    <div class="grafico" id="g-estrelas"></div>
+    <p class="vazio" id="v-estrelas" hidden></p>
+    <details><summary>Tabela por semana</summary><div class="rolagem"><table id="t-estrelas"></table></div></details>
+  </section>
+
+  <section class="cartao">
+    <h2>Aim, speed e acc</h2>
+    <p class="explica">Aim e speed são os atributos de dificuldade do mapa com os mods, como a API do osu! calcula.
+      Para cada semana, o maior aim e o maior speed entre os mapas que você passou e entre os FCs.
+      A acc é a de todas as jogadas da semana (só o trecho jogado), com o OD médio dos mapas para dar contexto.</p>
+    <div class="blocos" id="p-habilidades"></div>
+    <div class="multiplos tres">
+      <div><h3>Aim</h3><div class="grafico" id="g-aim-semana"></div><p class="vazio" id="v-aim-semana" hidden></p></div>
+      <div><h3>Speed</h3><div class="grafico" id="g-speed-semana"></div><p class="vazio" id="v-speed-semana" hidden></p></div>
+      <div><h3>Acc</h3><div class="grafico" id="g-acc-semana"></div><p class="vazio" id="v-acc-semana" hidden></p></div>
+    </div>
+  </section>
+
+  <section class="cartao">
+    <h2>Skillsets</h2>
+    <p class="explica">Cada mapa jogado é classificado pelo .osu (espaçamento, ritmo, BPM, streams de 1/4, mudanças de ritmo).
+      Um mapa pode ter mais de um tipo. Os números de cada tipo vêm só das suas jogadas em mapas daquele tipo:
+      acc, misses por 100 notas, maior pp e FCs, nos últimos 7 e 30 dias contra o período anterior.</p>
+    <p class="explica" id="p-sem-features"></p>
+    <div class="skillsets" id="p-skillsets"></div>
+  </section>
+
+  <section class="cartao">
+    <h2>Classificador</h2>
+    <p class="explica" id="p-regra-classificador"></p>
+    <div class="rolagem"><table id="t-classificador"></table></div>
+    <div id="p-avisos-classificador"></div>
+    <h3 class="sub-titulo">Mapas para marcar</h3>
+    <p class="explica">Os mapas em que o classificador tem mais dúvida: cada marcação aqui ensina o máximo.
+      Marque os tipos que o mapa tem e salve; sem nenhum marcado, salva como “nenhum”. A sua marcação sempre vale
+      acima do classificador para aquele mapa.</p>
+    <div class="rolagem"><table id="t-para-marcar"></table></div>
+    <p class="vazio" id="v-para-marcar" hidden></p>
+    <details>
+      <summary>Todos os mapas classificados</summary>
+      <div class="rolagem"><table id="t-todos-mapas"></table></div>
+    </details>
+  </section>
+</main>
+
 <footer class="rodape">Tudo vem do banco neste PC. Gráficos com plotly.js (licença MIT).</footer>
 <script src="/static/painel.js"></script>
+<script src="/static/progresso.js"></script>
 </body>
 </html>

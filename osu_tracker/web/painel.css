@@ -100,4 +100,43 @@ td.mapa { white-space: normal; min-width: 240px; }
 .subindo { color: var(--ruim); font-weight: 600; }
 .tabela-mapas summary { cursor: pointer; color: var(--texto-2); margin-top: 8px; }
 
+[hidden] { display: none !important; }
+
+.abas { display: inline-flex; gap: 4px; margin-top: 10px; }
+.abas button {
+  font: inherit; color: var(--texto-2); background: transparent; border: 0; border-bottom: 2px solid transparent;
+  padding: 4px 10px 6px; cursor: pointer;
+}
+.abas button:hover { color: var(--texto); }
+.abas button[aria-selected="true"] { color: var(--texto); border-bottom-color: var(--serie-1); font-weight: 600; }
+
+h3 { font-size: 14px; font-weight: 600; margin: 12px 0 0; color: var(--texto-2); }
+.sub-titulo { font-size: 15px; color: var(--texto); margin-top: 20px; }
+.cartao > .blocos { margin: 8px 0 4px; }
+.variacoes { display: flex; flex-direction: column; margin-top: 4px; font-size: 12px; }
+.var { color: var(--texto-2); }
+.var.caindo, .var.subindo { font-weight: 600; }
+.multiplos { display: grid; gap: 16px; }
+.multiplos.dois { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.multiplos.tres { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.multiplos .grafico { height: 260px; }
+.grafico.baixo { height: 200px; }
+.skillsets { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); margin-top: 8px; }
+.skillset { border: 1px solid var(--borda); border-radius: 10px; padding: 12px 14px; }
+.skillset h3 { margin: 0; color: var(--texto); font-size: 15px; }
+.skillset .detalhe { margin: 2px 0 0; font-size: 12px; color: var(--mudo); }
+.skillset table { font-size: 13px; }
+td.confiancas { font-size: 12px; color: var(--texto-2); min-width: 260px; }
+td.marcar { white-space: normal; min-width: 210px; }
+td.marcar label { display: inline-flex; gap: 4px; align-items: center; margin-right: 10px; cursor: pointer; }
+td.acoes { display: flex; gap: 6px; }
+td.acoes button {
+  font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--serie-1); background: var(--serie-1); color: #fff;
+}
+td.acoes button.secundario { background: transparent; color: var(--texto); border-color: var(--eixo); }
+td.acoes button:disabled { opacity: .5; cursor: default; }
+details summary { cursor: pointer; color: var(--texto-2); margin-top: 8px; }
+#p-avisos-classificador .aviso { margin-top: 8px; }
+
 .rodape { text-align: center; color: var(--mudo); font-size: 12px; padding: 16px 0 24px; }

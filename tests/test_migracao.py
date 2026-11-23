@@ -60,8 +60,69 @@ CREATE TABLE IF NOT EXISTS coletas (
 );
 """
 
-# Do commit 2e2caa2 em diante o schema e o atual.
-VERSOES = {"0b5dbe3 a dff445a": SCHEMA_V1, "2e2caa2 em diante": db.SCHEMA}
+# Commits 2e2caa2 a fd10afb: jogadas com mods_chave e fracao_jogada, mapas, mapas_mods e coletas
+# (sem os comentarios do original; colunas, tipos e restricoes iguais).
+SCHEMA_V2 = SCHEMA_V1.replace(
+    "    coletado_em         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))\n);",
+    "    coletado_em         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),\n"
+    "    mods_chave          TEXT,\n    fracao_jogada       REAL\n);",
+) + """
+CREATE TABLE IF NOT EXISTS mapas (
+    beatmap_id      INTEGER PRIMARY KEY,
+    beatmapset_id   INTEGER,
+    ruleset_id      INTEGER,
+    artista         TEXT,
+    titulo          TEXT,
+    mapper          TEXT,
+    versao          TEXT,
+    status          TEXT,
+    checksum        TEXT,
+    estrelas        REAL,
+    bpm             REAL,
+    total_length    INTEGER,
+    hit_length      INTEGER,
+    ar              REAL,
+    od              REAL,
+    cs              REAL,
+    hp              REAL,
+    count_circles   INTEGER,
+    count_sliders   INTEGER,
+    count_spinners  INTEGER,
+    last_updated    TEXT
+);
+CREATE TABLE IF NOT EXISTS mapas_mods (
+    beatmap_id      INTEGER NOT NULL,
+    ruleset_id      INTEGER NOT NULL,
+    mods_chave      TEXT NOT NULL,
+    mods_json       TEXT NOT NULL,
+    taxa            REAL NOT NULL,
+    taxa_api        REAL NOT NULL,
+    bpm             REAL,
+    total_length    REAL,
+    hit_length      REAL,
+    ar              REAL,
+    od              REAL,
+    cs              REAL,
+    hp              REAL,
+    star_rating     REAL,
+    max_combo       INTEGER,
+    aim_difficulty  REAL,
+    speed_difficulty REAL,
+    speed_note_count REAL,
+    slider_factor   REAL,
+    flashlight_difficulty REAL,
+    aim_difficult_slider_count REAL,
+    aim_difficult_strain_count REAL,
+    speed_difficult_strain_count REAL,
+    atributos_json  TEXT,
+    erro            TEXT,
+    buscado_em      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (beatmap_id, ruleset_id, mods_chave)
+);
+"""
+
+# Do commit seguinte a fd10afb em diante o schema e o atual (perfil, .osu, marcacoes e modelos).
+VERSOES = {"0b5dbe3 a dff445a": SCHEMA_V1, "2e2caa2 a fd10afb": SCHEMA_V2, "atual": db.SCHEMA}
 
 JOGADAS = 160  # como o banco do PC em que o problema apareceu
 
@@ -128,7 +189,21 @@ class TestVersoesAnteriores(unittest.TestCase):
                          jogadas)
         self.assertEqual(con.execute("SELECT COUNT(*) FROM coletas").fetchone()[0], 1)
         self.assertEqual(con.execute("SELECT COUNT(*) FROM jogadas WHERE mods_chave IS NULL").fetchone()[0], 0)
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM jogadas WHERE combo_perfeito IS NULL").fetchone()[0], 0)
         self.assertFalse(db.precisa_migrar(con))
+
+    def test_versao_anterior_ganha_combo_perfeito_e_tabelas_novas(self):
+        criar_banco(self.banco, SCHEMA_V2)
+        con = db.conectar(self.banco)
+        self.addCleanup(con.close)
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM jogadas WHERE combo_perfeito IS NULL").fetchone()[0], 0)
+        for tabela in ("perfil_diario", "rank_historico", "mapas_osu", "marcacoes", "modelos"):
+            self.assertEqual(con.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0], 0, tabela)
+        self.assertFalse(db.precisa_migrar(con))
+        # A pagina da aba Progresso tambem abre com o banco migrado.
+        d = pegar(self.url.replace("api/painel", "api/progresso"))
+        self.assertIsNone(d["aviso"])
+        self.assertEqual(sum(s["jogadas"] for s in d["semanas"]), JOGADAS)
 
     def test_banco_que_nao_da_para_migrar_mostra_aviso(self):
         criar_banco(self.banco, SCHEMA_V1)
@@ -160,7 +235,7 @@ class TestColunasDoSchema(unittest.TestCase):
         referencia = sqlite3.connect(":memory:")
         self.addCleanup(referencia.close)
         referencia.executescript(db.SCHEMA)
-        for tabela in ("jogadas", "mapas", "mapas_mods", "coletas"):
+        for tabela in ("jogadas", "mapas", "mapas_mods", "coletas", "perfil_diario", "mapas_osu", "marcacoes", "modelos"):
             with self.subTest(tabela=tabela):
                 esperadas = {r[1] for r in referencia.execute(f"PRAGMA table_info({tabela})")}
                 self.assertEqual({r[1] for r in con.execute(f"PRAGMA table_info({tabela})")}, esperadas)

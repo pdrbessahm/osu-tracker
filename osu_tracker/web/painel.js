@@ -207,7 +207,8 @@ function graficoFaixas(faixas) {
     tabela(t, [], []);
     return;
   }
-  const x = faixas.map((f) => f.nome);
+  // Rotulo curto (inicio da faixa) para caber nos tres graficos lado a lado; o nome inteiro fica no detalhe.
+  const x = faixas.map((f) => num(f.de, 1) + "★");
   const texto = faixas.map((f) => `${f.nome}<br>${plural(f.jogadas, "jogada", "jogadas")} em ${plural(f.mapas, "mapa", "mapas")}`);
   const l = layoutBase({ margin: { l: 48, r: 12, t: 36, b: 48 }, bargap: 0.3 });
   l.grid = { rows: 1, columns: 3, pattern: "independent", xgap: 0.12 };
@@ -372,8 +373,8 @@ async function carregar() {
   $("aviso").textContent = d.aviso || "";
   $("aviso").hidden = !d.aviso;
   opcoesMods(d.mods_disponiveis || []);
-  document.querySelector("main").classList.toggle("sem-dados", !d.resumo);
-  for (const s of document.querySelectorAll("main > section")) s.hidden = !d.resumo;
+  $("painel-analise").classList.toggle("sem-dados", !d.resumo);
+  for (const s of document.querySelectorAll("#painel-analise > section")) s.hidden = !d.resumo;
   if (d.resumo && !d.resumo.jogadas && !d.aviso) {
     $("aviso").textContent = estado.dias || estado.mods !== "*"
       ? "Nenhuma jogada com esses filtros. Experimente um período maior ou Todos os mods."
@@ -392,5 +393,25 @@ $("periodo").addEventListener("click", (e) => {
 });
 $("mods").addEventListener("change", (e) => { estado.mods = e.target.value; carregar(); });
 $("mapa").addEventListener("change", (e) => { estado.mapa = e.target.value; graficoTempo(estado.dados); });
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", desenharTudo);
-carregar();
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  desenharTudo();
+  if (window.redesenharProgresso) window.redesenharProgresso();
+});
+
+// --- abas ---
+
+function mostrarAba(aba) {
+  for (const b of document.querySelectorAll(".abas button")) b.setAttribute("aria-selected", String(b.dataset.aba === aba));
+  $("painel-analise").hidden = aba !== "analise";
+  $("painel-progresso").hidden = aba !== "progresso";
+  $("filtros").hidden = aba !== "analise"; // periodo e mods valem so para a Analise
+  if (aba === "progresso" && window.carregarProgresso) window.carregarProgresso();
+  if (aba === "analise") desenharTudo(); // o plotly precisa medir o grafico visivel
+  if (location.hash !== "#" + aba) history.replaceState(null, "", "#" + aba);
+}
+document.querySelector(".abas").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (b) mostrarAba(b.dataset.aba);
+});
+
+carregar().then(() => mostrarAba(location.hash === "#progresso" ? "progresso" : "analise"));

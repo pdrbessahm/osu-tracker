@@ -4,7 +4,7 @@ Sobe o painel numa porta livre, abre num Chromium sem tela (playwright), confere
 carregou sem erro de JavaScript e salva um print da pagina inteira.
 
     pip install playwright
-    python tests/e2e_painel.py [print.png] [--chromium CAMINHO] [--escuro] [--mapa]
+    python tests/e2e_painel.py [print.png] [--chromium CAMINHO] [--escuro] [--mapa] [--progresso]
 
 --mapa escolhe no primeiro grafico o mapa com mais tentativas, em vez de "Todos os mapas".
 """
@@ -26,6 +26,7 @@ def main() -> int:
     parser.add_argument("--chromium", help="executavel do Chromium (padrao: o do playwright)")
     parser.add_argument("--escuro", action="store_true", help="print no modo escuro")
     parser.add_argument("--mapa", action="store_true", help="mostra o mapa com mais tentativas no primeiro grafico")
+    parser.add_argument("--progresso", action="store_true", help="print da aba Progresso")
     parser.add_argument("--largura", type=int, default=1280)
     args = parser.parse_args()
 
@@ -39,8 +40,8 @@ def main() -> int:
                                         color_scheme="dark" if args.escuro else "light", locale="pt-BR")
             pagina.on("pageerror", lambda e: erros.append(str(e)))
             pagina.on("console", lambda m: erros.append(m.text) if m.type == "error" else None)
-            pagina.goto(url)
-            pagina.wait_for_selector("body[data-carregado]")
+            pagina.goto(url + ("#progresso" if args.progresso else ""))
+            pagina.wait_for_selector("body[data-progresso]" if args.progresso else "body[data-carregado]")
             if args.mapa:
                 opcoes = pagina.locator("#mapa option")
                 if opcoes.count() > 1:

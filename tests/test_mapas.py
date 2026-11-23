@@ -16,9 +16,11 @@ MAPA = {
 CONJUNTO = {"artist": "Artista", "title": "Musica", "creator": "Mapper"}
 
 
-def score(score_id, mods=(), beatmap=None, passed=False, stats=None, ended_at="2026-11-22T17:08:40Z", ruleset_id=0):
+def score(score_id, mods=(), beatmap=None, passed=False, stats=None, ended_at="2026-11-22T17:08:40Z", ruleset_id=0,
+          **extra):
     beatmap = beatmap or MAPA
     return {
+        **extra,
         "id": score_id, "legacy_score_id": 0, "user_id": 1, "beatmap_id": beatmap["id"], "ruleset_id": ruleset_id,
         "ended_at": ended_at, "passed": passed, "rank": "B", "accuracy": 0.88, "max_combo": 66,
         "mods": [m if isinstance(m, dict) else {"acronym": m} for m in mods],

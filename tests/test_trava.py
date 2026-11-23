@@ -24,6 +24,9 @@ class ApiLenta:
         time.sleep(self.espera)
         return []
 
+    def buscar_usuario(self, id_ou_nick, mode=None):
+        return {"id": 1, "statistics": {"pp": 1000.0}, "rank_history": {"mode": mode, "data": []}}
+
 
 class TestTrava(unittest.TestCase):
     def setUp(self):

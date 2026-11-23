@@ -146,6 +146,7 @@ python -m osu_tracker detectar     # so o detector
 python -m osu_tracker configurar   # assistente
 python -m osu_tracker janela       # janela de configuracao e status
 python -m osu_tracker painel       # painel com os graficos no navegador (Ctrl+C fecha)
+python -m osu_tracker marcar       # marca o tipo de um mapa (veja Progresso)
 ```
 
 O `painel` aceita `--porta 8000` (padrao: uma porta livre) e `--sem-navegador` (so sobe o painel e mostra o endereco).
@@ -192,7 +193,7 @@ Nesses casos BPM, duracao, AR e OD usam a velocidade real (`taxa`) e a coluna `t
 Na janela, o botao "Abrir painel" sobe um servidor so neste PC (`127.0.0.1`, numa porta livre) e abre o painel no navegador.
 O painel fica no ar enquanto a janela estiver aberta.
 Pelo console, `python -m osu_tracker painel` faz o mesmo.
-Ele so le o banco (nunca grava) e funciona sem internet: a pagina e a biblioteca de graficos ([plotly.js](https://github.com/plotly/plotly.js), licenca MIT, em `osu_tracker/web/vendor`) vao junto com o programa.
+Ele so le o banco (a unica escrita e a marcacao do tipo de um mapa, na aba Progresso) e funciona sem internet: a pagina e a biblioteca de graficos ([plotly.js](https://github.com/plotly/plotly.js), licenca MIT, em `osu_tracker/web/vendor`) vao junto com o programa.
 
 Quase toda jogada de quem esta subindo de nivel e fail, entao os graficos nao dependem de passar o mapa:
 
@@ -214,6 +215,52 @@ O que ele mostra, com filtro de periodo (7, 30, 90 dias ou tudo) e de mods:
   Lista os 10 com a menor estimativa, entre os que ja tem pelo menos 100 notas jogadas.
 
 So osu! standard por enquanto: e o unico modo em que a fracao jogada e as contagens de notas batem.
+
+FC, aqui e na aba Progresso, conta como no jogo: passou, sem miss e sem quebrar o combo (campos `is_perfect_combo` do lazer ou `legacy_perfect` do stable, guardados na coluna `combo_perfeito`).
+
+## Progresso
+
+A aba *Progresso* do painel mostra se voce esta melhorando, com a variacao em 7 e 30 dias:
+
+- *Perfil*: na primeira coleta de cada dia o osu-tracker guarda pp, rank global e no pais, acc, play count, ranked score e nivel (tabela `perfil_diario`).
+  O rank global dos 90 dias anteriores vem do historico que o osu! guarda (`rank_history`) e fica em `rank_historico`, entao o grafico de rank ja comeca cheio.
+  A variacao compara com a foto de 7 e de 30 dias atras.
+- *Estrelas por semana*: a maior dificuldade (estrelas com os mods) que voce passou e a maior com FC, de segunda a domingo, mais a mais dificil que voce tentou.
+- *Aim, speed e acc*: o maior aim e o maior speed (atributos da API com os mods) entre os mapas passados e entre os FCs, e a acc de cada semana com o OD medio dos mapas.
+- *Skillsets*: stream, jump, tech e alternate / finger control.
+  Os numeros de cada tipo vem so das jogadas em mapas daquele tipo: acc, misses por 100 notas, maior pp e FCs.
+  Nos blocos e nas tabelas, a variacao compara os ultimos 7 (ou 30) dias com os 7 (ou 30) anteriores.
+
+### Como o tipo do mapa e decidido
+
+Depois de cada coleta o osu-tracker baixa o `.osu` dos mapas que voce jogou (`https://osu.ppy.sh/osu/<id>`, um por segundo, no maximo 30 por coleta), guarda numa pasta `mapas_osu` ao lado do banco e tira dele medidas de padrao (`arquivo_osu.py`): BPM, objetos por segundo, notas em streams (9+ notas a 1/4 ou mais rapido) e em bursts (3 a 8), saltos (intervalo de 1/2 ou mais lento com 2,5 circulos ou mais de distancia), espacamento, mudancas de ritmo, divisores usados (1/2, 1/3, 1/4...), sliders e mudancas de SV.
+O `.osu` so e baixado de novo se o mapa for atualizado.
+
+Para cada mapa e tipo vale, nesta ordem:
+
+1. a sua marcacao, sempre;
+2. um modelo treinado com as suas marcacoes, quando o tipo tem pelo menos 20 mapas marcados como "e" e 20 como "nao e";
+3. uma regra sobre as medidas do `.osu` (mostrada no painel).
+
+O modelo e uma regressao logistica sobre as medidas padronizadas, treinada de novo a cada marcacao.
+O painel mostra a confianca de cada classificacao, as medidas que mais pesam no modelo e a precisao estimada: a media do acerto nos mapas que sao e nos que nao sao do tipo, numa validacao cruzada de 5 partes, ao lado da mesma conta para a regra.
+Abaixo de 75%, o painel avisa.
+
+### Marcar o tipo de um mapa
+
+No painel, a lista *Mapas para marcar* traz os mapas em que o classificador tem mais duvida: marque os tipos e clique em Salvar (sem nenhum marcado, salva como "nenhum").
+Todos os mapas ficam em *Todos os mapas classificados*.
+Esta e a unica escrita que o painel faz no banco.
+Pela linha de comando:
+
+```sh
+python -m osu_tracker marcar 5587991 stream jump   # um ou mais tipos
+python -m osu_tracker marcar 5587991 nenhum
+python -m osu_tracker marcar 5587991 --limpar      # volta a valer o classificador
+python -m osu_tracker marcar --sugerir             # os mapas que mais ensinariam
+```
+
+O numero e o ID da dificuldade (o que aparece depois de `#osu/` no endereco do mapa).
 
 ## Testes
 

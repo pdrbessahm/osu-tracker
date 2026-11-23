@@ -51,7 +51,7 @@ class OsuApi:
         self._expira = 0.0
         self._ultima = 0.0
 
-    def _requisitar(self, req: urllib.request.Request):
+    def _requisitar(self, req: urllib.request.Request, bruto: bool = False):
         for tentativa in range(TENTATIVAS):
             espera = INTERVALO_MIN - (time.monotonic() - self._ultima)
             if espera > 0:
@@ -59,7 +59,7 @@ class OsuApi:
             self._ultima = time.monotonic()
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
-                    return json.load(resp)
+                    return resp.read() if bruto else json.load(resp)
             except urllib.error.HTTPError as e:
                 if e.code == 429 or e.code >= 500:
                     atraso = 2 ** (tentativa + 1)
@@ -140,6 +140,11 @@ class OsuApi:
         """Atributos de dificuldade do mapa com os mods aplicados (POST /beatmaps/{id}/attributes)."""
         resposta = self.post(f"/beatmaps/{beatmap_id}/attributes", {"mods": mods, "ruleset_id": ruleset_id})
         return resposta["attributes"]
+
+    def arquivo_osu(self, beatmap_id: int) -> bytes:
+        """O .osu do mapa, do endereco publico do site (sem token), no mesmo ritmo de 1 pedido por segundo."""
+        req = urllib.request.Request(f"{BASE}/osu/{int(beatmap_id)}", headers={"User-Agent": USER_AGENT})
+        return self._requisitar(req, bruto=True)
 
     def buscar_usuario(self, id_ou_nick: str, mode: str | None = None) -> dict:
         """Jogador pelo ID numerico ou pelo nick (com ou sem @ na frente).
