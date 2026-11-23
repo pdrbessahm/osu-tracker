@@ -1,5 +1,7 @@
+import gc
 import os
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
@@ -93,7 +95,13 @@ class TestJanela(unittest.TestCase):
         self.raiz = _tela()
         if self.raiz is None:
             self.skipTest("sem tela para abrir a janela")
+        # As limpezas rodam de tras para frente: espera os trabalhos em segundo plano da janela, destroi a tela
+        # e so entao coleta o lixo, tudo na thread principal. Sem isso, um objeto do tkinter que sobra de um
+        # teste e destruido depois por outra thread e o Tcl derruba o processo inteiro.
+        self.addCleanup(gc.collect)
         self.addCleanup(self.raiz.destroy)
+        antes = set(threading.enumerate())
+        self.addCleanup(lambda: [th.join(5) for th in set(threading.enumerate()) - antes if th.daemon])
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         for p in (
