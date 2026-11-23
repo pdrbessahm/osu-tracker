@@ -57,6 +57,27 @@ jobs:
         run: |
           $p = Start-Process -FilePath dist\osu-tracker.exe -ArgumentList "--help" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "osu-tracker.exe --help saiu com codigo $($p.ExitCode)" }
+      - name: Confere que o painel sobe pelo executavel, com a pagina e os graficos embutidos
+        shell: pwsh
+        run: |
+          $env:OSU_TRACKER_DIR = Join-Path $env:RUNNER_TEMP "osu-tracker-ci"
+          $p = Start-Process -FilePath dist\osu-tracker.exe -ArgumentList "painel","--porta","8765","--sem-navegador" -PassThru
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+              Start-Sleep -Seconds 1
+              if ($p.HasExited) { throw "o painel saiu com codigo $($p.ExitCode)" }
+              try { $pagina = Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing; $ok = $true } catch { }
+            }
+            if (-not $ok) { throw "o painel nao respondeu em 60 s" }
+            if ($pagina.Content -notmatch "Mapas sugeridos para farmar") { throw "pagina do painel sem o conteudo esperado" }
+            $js = Invoke-WebRequest http://127.0.0.1:8765/static/vendor/plotly.min.js -UseBasicParsing
+            if ($js.RawContentLength -lt 1000000) { throw "plotly.min.js nao veio no executavel" }
+            $api = Invoke-RestMethod http://127.0.0.1:8765/api/painel
+            if (-not $api.aviso) { throw "sem configuracao o painel deveria avisar" }
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: osu-tracker-exe

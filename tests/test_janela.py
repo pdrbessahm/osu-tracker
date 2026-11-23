@@ -2,6 +2,7 @@ import os
 import tempfile
 import time
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest import mock
 
@@ -164,6 +165,22 @@ class TestJanela(unittest.TestCase):
             self.assertEqual(j.btn_detector["text"], "Parar")
             j.btn_detector.invoke()
             self.esperar(lambda: j.lbl_detector["text"] == "Parado")
+
+    def test_botao_abrir_painel(self):
+        abertas = []
+        j = janela.Janela(self.raiz, criar_api=ApiFalsa)
+        j.abrir_url = abertas.append
+        j.btn_painel.invoke()
+        self.esperar(lambda: abertas)
+        self.addCleanup(j.painel.parar)
+        url = abertas[0]
+        self.assertTrue(url.startswith("http://127.0.0.1:"))
+        with urllib.request.urlopen(url, timeout=10) as resposta:
+            self.assertIn("Painel", resposta.read().decode("utf-8"))
+        # Segundo clique reaproveita o mesmo servidor.
+        j.btn_painel.invoke()
+        self.assertEqual(abertas, [url, url])
+        self.assertEqual(j.btn_painel["text"], "Abrir painel")
 
 
 if __name__ == "__main__":

@@ -3,8 +3,7 @@
 Guarda automaticamente toda jogada sua de osu!, inclusive os fails, num banco no seu proprio PC.
 A ideia e transformar esse historico em decisoes de treino: que mapa farmar, que habilidade treinar e se os seus misses estao caindo.
 
-Estado atual: coleta automatica, dificuldade de cada mapa com os mods que voce usou e uma janela de configuracao e status (no Windows, um `osu-tracker.exe` que nao precisa de Python).
-O painel com os graficos vem nas proximas versoes.
+Estado atual: coleta automatica, dificuldade de cada mapa com os mods que voce usou, uma janela de configuracao e status e um painel com graficos no navegador (no Windows, tudo num `osu-tracker.exe` que nao precisa de Python).
 
 ## O que ele faz
 
@@ -28,7 +27,7 @@ Nao precisa de Python.
    O osu-tracker confere tudo na API antes de gravar.
 4. Na aba *Status*, clique em "Iniciar" e marque "Iniciar o detector junto com o Windows".
 
-A janela mostra se o detector esta rodando (com o botao para iniciar ou parar), a ultima coleta e quantas jogadas ela trouxe, o total de jogadas no banco e botoes para abrir a pasta de dados e o log.
+A janela mostra se o detector esta rodando (com o botao para iniciar ou parar), a ultima coleta e quantas jogadas ela trouxe, o total de jogadas no banco e botoes para abrir o painel, a pasta de dados e o log.
 Fechar a janela nao para o detector: ele continua em segundo plano, sem janela.
 Para voltar a janela, abra o `osu-tracker.exe` de novo.
 
@@ -146,7 +145,10 @@ python -m osu_tracker coletar      # uma coleta agora, com ou sem o jogo aberto
 python -m osu_tracker detectar     # so o detector
 python -m osu_tracker configurar   # assistente
 python -m osu_tracker janela       # janela de configuracao e status
+python -m osu_tracker painel       # painel com os graficos no navegador (Ctrl+C fecha)
 ```
+
+O `painel` aceita `--porta 8000` (padrao: uma porta livre) e `--sem-navegador` (so sobe o painel e mostra o endereco).
 
 O `osu-tracker.exe` aceita os mesmos comandos (`osu-tracker.exe coletar`, por exemplo); sem comando, abre a janela.
 Ele e um programa de janela, entao num terminal a saida aparece mas o terminal nao espera ele terminar; o que aconteceu fica sempre no log.
@@ -185,6 +187,34 @@ A API nao devolve AR e OD com mods, entao eles sao calculados aqui (HR, EZ, Diff
 A API tambem ignora velocidade customizada do lazer (por exemplo DT a 1.3x) e calcula SR, aim e speed como 1.5x.
 Nesses casos BPM, duracao, AR e OD usam a velocidade real (`taxa`) e a coluna `taxa_api` mostra a velocidade usada pela API.
 
+## Painel
+
+Na janela, o botao "Abrir painel" sobe um servidor so neste PC (`127.0.0.1`, numa porta livre) e abre o painel no navegador.
+O painel fica no ar enquanto a janela estiver aberta.
+Pelo console, `python -m osu_tracker painel` faz o mesmo.
+Ele so le o banco (nunca grava) e funciona sem internet: a pagina e a biblioteca de graficos ([plotly.js](https://github.com/plotly/plotly.js), licenca MIT, em `osu_tracker/web/vendor`) vao junto com o programa.
+
+Quase toda jogada de quem esta subindo de nivel e fail, entao os graficos nao dependem de passar o mapa:
+
+- *misses por 100 notas*: misses sobre as notas julgadas (300, 100, 50 e miss) do trecho jogado;
+- *fracao jogada*: ate onde a jogada chegou no mapa (100% num pass);
+- *acc*: pela formula do stable, sobre o trecho jogado; *acc so das acertadas* e a mesma conta sem os misses.
+
+Em grupos (dia, mapa, faixa), os totais sao somados antes de dividir: uma tentativa de 30 notas pesa menos que uma de 500.
+
+O que ele mostra, com filtro de periodo (7, 30, 90 dias ou tudo) e de mods:
+
+- *Misses ao longo do tempo*: todos os mapas, um ponto por dia, ou um mapa tentado mais de uma vez, tentativa por tentativa, com a fracao jogada embaixo.
+  A tendencia de cada mapa compara a primeira metade das tentativas com a segunda (10% para menos e "caindo", 10% para mais e "subindo").
+- *Desempenho por faixa de 0,5 estrela* (com os mods): misses por 100 notas, fracao jogada media e acc.
+- *Aim contra speed*: cada jogada e comparada com as da mesma faixa de estrelas; se a razao aim/speed do mapa esta acima da mediana da faixa, conta como mapa de aim, se esta abaixo, como mapa de speed.
+  Assim um mapa mais dificil nao parece "de aim" so por ser mais dificil.
+- *Acc so das notas acertadas* em cada jogada, ao lado da acc com os misses.
+- *Mapas sugeridos para farmar*: para cada mapa (com os mesmos mods) ainda sem FC, a taxa de misses nele vezes as notas do mapa inteiro, ou seja, quantos misses voce faria hoje jogando ate o fim.
+  Lista os 10 com a menor estimativa, entre os que ja tem pelo menos 100 notas jogadas.
+
+So osu! standard por enquanto: e o unico modo em que a fracao jogada e as contagens de notas batem.
+
 ## Testes
 
 ```sh
@@ -194,6 +224,8 @@ python -m unittest discover -s tests
 Os testes da janela abrem uma janela de verdade e sao pulados se nao houver tela.
 
 `tests/e2e_detector.py` faz um teste ponta a ponta no Linux ou macOS com a API real e a sua configuracao: simula o jogo abrindo e fechando e duas coletas ao mesmo tempo.
+
+`tests/e2e_painel.py` abre o painel com o seu banco num Chromium sem tela, confere que a pagina nao tem erro e salva um print (precisa de `pip install playwright`; veja `--help`).
 
 ## Gerar o executavel
 

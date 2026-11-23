@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>osu-tracker · Painel</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/painel.css">
+<script src="/static/vendor/plotly.min.js"></script>
+</head>
+<body>
+<header class="topo">
+  <div>
+    <h1>osu-tracker <span class="sub">Painel</span></h1>
+    <p class="jogador" id="jogador"></p>
+  </div>
+  <div class="filtros" role="group" aria-label="Filtros">
+    <div class="filtro">
+      <span class="rotulo">Período</span>
+      <div class="segmentos" id="periodo">
+        <button type="button" data-dias="7">7 dias</button>
+        <button type="button" data-dias="30">30 dias</button>
+        <button type="button" data-dias="90">90 dias</button>
+        <button type="button" data-dias="">Tudo</button>
+      </div>
+    </div>
+    <label class="filtro">
+      <span class="rotulo">Mods</span>
+      <select id="mods"><option value="*">Todos</option></select>
+    </label>
+  </div>
+</header>
+
+<main>
+  <p class="aviso" id="aviso" hidden></p>
+
+  <section class="blocos" id="resumo" aria-label="Resumo do período"></section>
+
+  <section class="cartao">
+    <div class="cabeca">
+      <div>
+        <h2>Misses ao longo do tempo</h2>
+        <p class="explica">Misses por 100 notas jogadas: vale para fail também, porque conta só o trecho que você jogou.
+          Embaixo, até onde cada tentativa chegou no mapa.</p>
+      </div>
+      <label class="filtro">
+        <span class="rotulo">Mapa</span>
+        <select id="mapa"></select>
+      </label>
+    </div>
+    <p class="conclusao" id="c-tempo"></p>
+    <div class="grafico alto" id="g-tempo"></div>
+    <p class="vazio" id="v-tempo" hidden></p>
+    <details class="tabela-mapas">
+      <summary>Mapas tentados mais de uma vez</summary>
+      <div class="rolagem"><table id="t-mapas"></table></div>
+    </details>
+  </section>
+
+  <section class="cartao">
+    <h2>Desempenho por faixa de estrelas</h2>
+    <p class="explica">Faixas de 0,5 estrela, já com os mods de cada jogada.
+      A fração jogada é a média de até onde você chegou antes do fail (100% num pass).</p>
+    <div class="grafico alto" id="g-faixas"></div>
+    <p class="vazio" id="v-faixas" hidden></p>
+    <div class="rolagem"><table id="t-faixas"></table></div>
+  </section>
+
+  <section class="cartao">
+    <h2>Aim contra speed</h2>
+    <p class="explica">Cada jogada é comparada com as outras da mesma faixa de estrelas: se o aim do mapa pesa mais
+      em relação ao speed do que na mediana da faixa, conta como mapa de aim; se pesa menos, como mapa de speed.
+      Assim um mapa mais difícil não parece "de aim" só por ser mais difícil.</p>
+    <p class="conclusao" id="c-aim"></p>
+    <div class="grafico" id="g-aim"></div>
+    <p class="vazio" id="v-aim" hidden></p>
+  </section>
+
+  <section class="cartao">
+    <h2>Acc só das notas acertadas</h2>
+    <p class="explica">Tirando os misses da conta, sobra o seu timing nas notas que você acertou.
+      Se ela fica alta enquanto a acc geral cai, o problema são os misses, não o ritmo.</p>
+    <div class="grafico" id="g-acc"></div>
+    <p class="vazio" id="v-acc" hidden></p>
+  </section>
+
+  <section class="cartao">
+    <h2>Mapas sugeridos para farmar</h2>
+    <p class="explica" id="regra-sugestoes"></p>
+    <div class="rolagem"><table id="t-sugestoes"></table></div>
+    <p class="vazio" id="v-sugestoes" hidden></p>
+  </section>
+</main>
+
+<footer class="rodape">Tudo vem do banco neste PC. Gráficos com plotly.js (licença MIT).</footer>
+<script src="/static/painel.js"></script>
+</body>
+</html>

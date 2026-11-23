@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light;
+  --pagina: #f9f9f7;
+  --superficie: #fcfcfb;
+  --texto: #0b0b0b;
+  --texto-2: #52514e;
+  --mudo: #898781;
+  --grade: #e1e0d9;
+  --eixo: #c3c2b7;
+  --borda: rgba(11, 11, 11, 0.10);
+  --serie-1: #2a78d6;
+  --serie-2: #eb6834;
+  --bom: #006300;
+  --ruim: #d03b3b;
+  --destaque: #e8f0fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --pagina: #0d0d0d;
+    --superficie: #1a1a19;
+    --texto: #f0efec;
+    --texto-2: #c3c2b7;
+    --mudo: #898781;
+    --grade: #2c2c2a;
+    --eixo: #383835;
+    --borda: rgba(255, 255, 255, 0.10);
+    --serie-1: #3987e5;
+    --serie-2: #d95926;
+    --bom: #0ca30c;
+    --ruim: #e66767;
+    --destaque: #1c2a3d;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--pagina);
+  color: var(--texto);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1, h2 { font-weight: 600; margin: 0; }
+h1 { font-size: 22px; }
+h1 .sub { color: var(--texto-2); font-weight: 400; }
+h2 { font-size: 17px; margin-bottom: 4px; }
+
+.topo {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between;
+  padding: 20px 28px 16px; border-bottom: 1px solid var(--borda); background: var(--superficie);
+  position: sticky; top: 0; z-index: 5;
+}
+.jogador { margin: 2px 0 0; color: var(--texto-2); }
+.filtros { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+.filtro { display: flex; flex-direction: column; gap: 4px; }
+.rotulo { font-size: 12px; color: var(--texto-2); text-transform: uppercase; letter-spacing: .04em; }
+.segmentos { display: inline-flex; border: 1px solid var(--eixo); border-radius: 8px; overflow: hidden; }
+.segmentos button {
+  border: 0; background: transparent; color: var(--texto); padding: 6px 12px; font: inherit; cursor: pointer;
+}
+.segmentos button + button { border-left: 1px solid var(--eixo); }
+.segmentos button:hover { background: var(--destaque); }
+.segmentos button[aria-pressed="true"] { background: var(--serie-1); color: #fff; font-weight: 600; }
+select {
+  font: inherit; color: var(--texto); background: var(--superficie); border: 1px solid var(--eixo);
+  border-radius: 8px; padding: 6px 8px; max-width: 420px;
+}
+
+main { max-width: 1180px; margin: 0 auto; padding: 20px 28px 8px; display: grid; gap: 20px; }
+.aviso {
+  margin: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--borda);
+  background: var(--destaque); color: var(--texto);
+}
+
+.blocos { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.bloco { background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; padding: 12px 14px; }
+.bloco .nome { font-size: 13px; color: var(--texto-2); }
+.bloco .valor { font-size: 26px; font-weight: 600; margin-top: 2px; }
+.bloco .detalhe { font-size: 12px; color: var(--mudo); }
+
+.cartao { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 18px 20px; }
+.cabeca { display: flex; gap: 16px; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; }
+.cabeca > div { flex: 1 1 420px; }
+.explica { margin: 0 0 8px; color: var(--texto-2); max-width: 820px; }
+.conclusao { margin: 4px 0 0; font-weight: 600; }
+.grafico { width: 100%; height: 300px; }
+.grafico.alto { height: 420px; }
+.vazio {
+  margin: 8px 0; padding: 28px 16px; text-align: center; color: var(--texto-2);
+  border: 1px dashed var(--eixo); border-radius: 8px;
+}
+
+.rolagem { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 14px; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--grade); white-space: nowrap; }
+th { font-weight: 600; color: var(--texto-2); font-size: 13px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mapa { white-space: normal; min-width: 240px; }
+.caindo { color: var(--bom); font-weight: 600; }
+.subindo { color: var(--ruim); font-weight: 600; }
+.tabela-mapas summary { cursor: pointer; color: var(--texto-2); margin-top: 8px; }
+
+.rodape { text-align: center; color: var(--mudo); font-size: 12px; padding: 16px 0 24px; }

@@ -9,12 +9,15 @@ projeto = os.path.dirname(SPECPATH)
 a = Analysis(
     [os.path.join(SPECPATH, "executavel.py")],
     pathex=[projeto],
-    # Os scripts de inicio com o Windows vao junto: a janela os usa.
     datas=[
+        # Os scripts de inicio com o Windows vao junto: a janela os usa.
         (os.path.join(SPECPATH, "instalar.ps1"), "windows"),
         (os.path.join(SPECPATH, "desinstalar.ps1"), "windows"),
+        # Pagina do painel e a biblioteca de graficos (plotly.js): o painel funciona sem internet.
+        (os.path.join(projeto, "osu_tracker", "web"), os.path.join("osu_tracker", "web")),
     ],
-    hiddenimports=["osu_tracker.janela"],  # importado so quando a janela abre
+    # Importados so quando a janela ou o painel abrem. O uvicorn inteiro vem pelo hook do PyInstaller.
+    hiddenimports=["osu_tracker.janela", "osu_tracker.painel"],
 )
 pyz = PYZ(a.pure)
 exe = EXE(

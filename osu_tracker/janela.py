@@ -106,6 +106,8 @@ class Janela:
 
         botoes = ttk.Frame(f)
         botoes.grid(row=5, column=0, columnspan=2, sticky="w", pady=(12, 4))
+        self.btn_painel = ttk.Button(botoes, text="Abrir painel", command=self.abrir_painel)
+        self.btn_painel.pack(side="left", padx=(0, 8))
         ttk.Button(botoes, text="Abrir pasta de dados", command=self.abrir_pasta).pack(side="left")
         ttk.Button(botoes, text="Abrir log", command=self.abrir_log).pack(side="left", padx=(8, 0))
 
@@ -122,7 +124,8 @@ class Janela:
         self.lbl_aviso.grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
         ttk.Label(
             f, foreground=CINZA, wraplength=480, justify="left",
-            text="Fechar esta janela não para o detector: ele continua guardando suas jogadas em segundo plano.",
+            text="Fechar esta janela não para o detector: ele continua guardando suas jogadas em segundo plano. "
+                 "O painel, que abre no navegador, fica disponível enquanto esta janela estiver aberta.",
         ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def _montar_config(self) -> None:
@@ -315,6 +318,33 @@ class Janela:
                 messagebox.showwarning("osu-tracker", "O detector não ficou rodando. Veja o log.", parent=self.raiz)
 
         self._em_segundo_plano(acao, fim)
+
+    def abrir_painel(self) -> None:
+        """Sobe o painel numa porta livre (uma vez so) e abre no navegador."""
+        if self.painel is not None and self.painel.url:
+            self.abrir_url(self.painel.url)
+            return
+        self.btn_painel.state(["disabled"])
+        self.btn_painel.configure(text="Abrindo...")
+
+        def iniciar() -> str:
+            from . import painel  # o servidor web so carrega quando o painel e pedido
+            if self.painel is None:
+                self.painel = painel.Servidor()
+            return self.painel.iniciar()
+
+        def fim(url, erro):
+            self.btn_painel.state(["!disabled"])
+            self.btn_painel.configure(text="Abrir painel")
+            if erro is not None:
+                messagebox.showerror("osu-tracker", f"Não consegui abrir o painel:\n{erro}", parent=self.raiz)
+                return
+            self.abrir_url(url)
+
+        self._em_segundo_plano(iniciar, fim)
+
+    painel = None  # painel.Servidor, criado no primeiro clique
+    abrir_url = staticmethod(webbrowser.open)
 
     def abrir_pasta(self) -> None:
         pasta = config.pasta_app()

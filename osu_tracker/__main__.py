@@ -5,6 +5,7 @@
     python -m osu_tracker coletar      uma coleta agora
     python -m osu_tracker detectar     so o detector
     python -m osu_tracker janela       janela de configuracao e status (padrao no osu-tracker.exe)
+    python -m osu_tracker painel       painel com os graficos, no navegador
 """
 
 import argparse
@@ -89,6 +90,18 @@ def cmd_janela(args) -> int:
     return janela.main()
 
 
+def cmd_painel(args) -> int:
+    registro.configurar()
+    from . import painel  # so carrega o servidor web quando o painel e pedido
+
+    def avisar(url: str) -> None:
+        if sys.stdout is not None:
+            print(f"Painel em {url}  (Ctrl+C para fechar)", flush=True)
+
+    painel.servir(porta=args.porta, abrir_navegador=not args.sem_navegador, ao_iniciar=avisar)
+    return 0
+
+
 def _usar_console_de_quem_chamou() -> None:
     """O osu-tracker.exe e de janela (sem console proprio, para o duplo clique nao abrir um console).
 
@@ -145,6 +158,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("janela", help="janela de configuracao e status")
     p.set_defaults(func=cmd_janela)
+
+    p = sub.add_parser("painel", help="painel com os graficos, no navegador (so neste PC)")
+    p.add_argument("--porta", type=int, default=0, help="porta em 127.0.0.1 (padrao: uma livre)")
+    p.add_argument("--sem-navegador", action="store_true", help="so sobe o painel, sem abrir o navegador")
+    p.set_defaults(func=cmd_painel)
 
     if argv is None:
         argv = sys.argv[1:]
